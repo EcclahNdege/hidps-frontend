@@ -42,7 +42,7 @@ export default function DashboardLayout({
           </nav>
         </div>
         <div>
-          <Link href="#" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg">
+          <Link href="/profile" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg">
             <UserCircle className="mr-3" /> Profile
           </Link>
           <Link href="/login" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg">
