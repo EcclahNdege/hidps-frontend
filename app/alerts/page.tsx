@@ -48,27 +48,9 @@ export default function AlertsPage() {
   const filteredAlerts = activeFilter === 'All' ? alerts : alerts.filter(a => a.type === activeFilter);
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-300 font-sans">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 p-6 flex-col justify-between border-r border-slate-800 hidden md:flex">
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-10 flex items-center gap-2"><Shield size={28}/> Sentinel</h1>
-          <nav className="space-y-3">
-            <Link href="/dashboard" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg"><BarChart className="mr-3" /> Dashboard</Link>
-            <Link href="/alerts" className="flex items-center py-2 px-3 bg-blue-500/10 text-blue-300 rounded-lg"><Bell className="mr-3" /> Alerts</Link>
-            <Link href="/logs" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg"><BookText className="mr-3" /> Logs</Link>
-            <Link href="#" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg"><Shield className="mr-3" /> Firewall</Link>
-            <Link href="/file-monitoring" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg"><FileWarning className="mr-3" /> File Monitoring</Link>
-          </nav>
-        </div>
-        <div>
-            <Link href="#" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg"><UserCircle className="mr-3" /> Profile</Link>
-            <Link href="/login" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg"><LogOut className="mr-3" /> Logout</Link>
-        </div>
-      </aside>
-
+    <>
       {/* Main Content */}
-      <main className="flex-1 p-6 md:p-8">
+      
         <header className="mb-8">
           <h2 className="text-3xl font-bold text-white">Security Alerts</h2>
           <p className="text-slate-400">Monitor, manage, and respond to threats in real-time.</p>
@@ -136,7 +118,7 @@ export default function AlertsPage() {
                 </div>
             </div>
         )}
-      </main>
-    </div>
+      
+    </>
   );
 }
