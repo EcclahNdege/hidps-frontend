@@ -1,30 +1,13 @@
 "use client";
-import { useState } from 'react';
-import { Bell, FileWarning, Shield, Users, Trash2, X, CheckCircle, Sidebar, BarChart, BookText, UserCircle, LogOut, Settings } from 'lucide-react';
-import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { Bell, FileWarning, Shield, Users, Trash2, X, CheckCircle } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
+import { createClient } from '@/lib/supabase/client';
+import { Database } from '@/lib/supabase/database.types';
 
-// --- MOCK DATA ---
+type Alert = Database['public']['Tables']['alerts']['Row'];
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low';
-
-interface Alert {
-  id: number;
-  type: string;
-  severity: Severity;
-  title: string;
-  details: string;
-  timestamp: string;
-  resolved: boolean;
-}
-
-const getInitialAlerts = (agentName: string): Alert[] => [
-  { id: 1, type: 'Login', severity: 'Critical', title: `SSH Brute Force on ${agentName}`, details: 'Multiple failed login attempts from IP 192.168.1.105 for user `root`.', timestamp: '2026-02-01T10:00:00Z', resolved: false },
-  { id: 2, type: 'File Monitoring', severity: 'High', title: `Critical File Modified on ${agentName}`, details: '`/etc/passwd` was modified. Check for unauthorized changes.', timestamp: '2026-02-01T09:55:00Z', resolved: false },
-  { id: 3, type: 'Process', severity: 'Medium', title: 'Suspicious Process Started', details: 'A new process `nmap` was started by user `www-data`.', timestamp: '2026-02-01T09:50:00Z', resolved: true },
-  { id: 4, type: 'Firewall', severity: 'Medium', title: 'Unusual Port Scan', details: 'Firewall blocked incoming connection attempts on multiple ports from 10.0.2.15.', timestamp: '2026-02-01T09:45:00Z', resolved: false },
-  { id: 5, type: 'Login', severity: 'Low', title: 'Successful Admin Login', details: 'User `admin` logged in successfully from a known IP.', timestamp: '2026-02-01T09:40:00Z', resolved: true },
-];
 
 const alertTypes = [
     { name: 'All', icon: Bell },
@@ -34,34 +17,80 @@ const alertTypes = [
     { name: 'Process', icon: Bell },
 ];
 
-const getSeverityStyling = (severity: Severity) => {
+const getSeverityStyling = (severity: number) => {
     switch (severity) {
-        case 'Critical': return 'bg-red-500/20 text-red-400 border-red-500/30';
-        case 'High': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-        case 'Medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-        default: return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+        case 4: return 'bg-red-500/20 text-red-400 border-red-500/30'; // Critical
+        case 3: return 'bg-orange-500/20 text-orange-400 border-orange-500/30'; // High
+        case 2: return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'; // Medium
+        default: return 'bg-blue-500/20 text-blue-400 border-blue-500/30'; // Low
     }
 };
+
+const getSeverityName = (severity: number): Severity => {
+    switch (severity) {
+        case 4: return 'Critical';
+        case 3: return 'High';
+        case 2: return 'Medium';
+        default: return 'Low';
+    }
+}
+
 
 // --- MAIN ALERTS PAGE COMPONENT ---
 export default function AlertsPage() {
   const { selectedAgent } = useAgent();
-  const initialAlerts = selectedAgent ? getInitialAlerts(selectedAgent.name) : [];
-  const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [activeFilter, setActiveFilter] = useState('All');
+  const supabase = createClient();
 
-  const handleResolve = (id: number) => {
-    setAlerts(alerts.map(a => a.id === id ? { ...a, resolved: true } : a));
-    if (selectedAlert?.id === id) setSelectedAlert(null);
+  useEffect(() => {
+    if (!selectedAgent) return;
+
+    const fetchAlerts = async () => {
+      let query = supabase.from('alerts').select('*').eq('agent_id', selectedAgent.id);
+      
+      if (activeFilter !== 'All') {
+        query = query.eq('alert_type', activeFilter);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching alerts:', error);
+      } else {
+        setAlerts(data);
+      }
+    };
+
+    fetchAlerts();
+  }, [selectedAgent, activeFilter, supabase]);
+
+  const handleResolve = async (id: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    
+    const { error } = await supabase.from('alerts').update({ resolved: true, resolved_by: session.user.id, resolved_at: new Date().toISOString() }).eq('id', id);
+    if (error) {
+      console.error('Error resolving alert:', error);
+    } else {
+      setAlerts(alerts.map(a => a.id === id ? { ...a, resolved: true } : a));
+      if (selectedAlert?.id === id) setSelectedAlert(null);
+    }
   };
 
-  const handleDelete = (id: number) => {
-    setAlerts(alerts.filter(a => a.id !== id));
-    if (selectedAlert?.id === id) setSelectedAlert(null);
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from('alerts').delete().eq('id', id);
+    if (error) {
+        console.error('Error deleting alert:', error);
+    }
+    else {
+        setAlerts(alerts.filter(a => a.id !== id));
+        if (selectedAlert?.id === id) setSelectedAlert(null);
+    }
   };
 
-  const filteredAlerts = activeFilter === 'All' ? alerts : alerts.filter(a => a.type === activeFilter);
+  const filteredAlerts = alerts;
 
   return (
     <>
@@ -103,9 +132,9 @@ export default function AlertsPage() {
                 >
                     <div className="flex justify-between items-start">
                         <h3 className="font-bold text-white pr-4">{alert.title}</h3>
-                        <span className="text-xs text-slate-500 whitespace-nowrap">{new Date(alert.timestamp).toLocaleTimeString()}</span>
+                        <span className="text-xs text-slate-500 whitespace-nowrap">{new Date(alert.created_at).toLocaleTimeString()}</span>
                     </div>
-                    <p className="text-sm text-slate-400 mt-2 truncate">{alert.details}</p>
+                    <p className="text-sm text-slate-400 mt-2 truncate">{alert.message}</p>
                 </div>
             ))}
             {filteredAlerts.length === 0 && <p className="text-slate-500">No alerts for this category.</p>}
@@ -120,13 +149,13 @@ export default function AlertsPage() {
                             <span className={`p-2 h-fit rounded-full ${getSeverityStyling(selectedAlert.severity)}`}><Bell size={20}/></span>
                             <div>
                                 <h2 className="text-xl font-bold text-white">{selectedAlert.title}</h2>
-                                <p className="text-sm text-slate-500">{new Date(selectedAlert.timestamp).toUTCString()}</p>
+                                <p className="text-sm text-slate-500">{new Date(selectedAlert.created_at).toUTCString()}</p>
                             </div>
                         </div>
                         <button onClick={() => setSelectedAlert(null)} className="p-2 rounded-full hover:bg-slate-800"><X size={20}/></button>
                    </header>
                    <div className="p-6">
-                        <p className="text-slate-300">{selectedAlert.details}</p>
+                        <p className="text-slate-300">{selectedAlert.message}</p>
                    </div>
                    <footer className="p-6 border-t border-slate-800 flex justify-end gap-4">
                         <button onClick={() => handleDelete(selectedAlert.id)} className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20"><Trash2 size={16}/> Delete</button>

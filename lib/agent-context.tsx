@@ -1,18 +1,10 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createClient } from './supabase/client';
+import { Database } from './supabase/database.types';
 
-// Mock data for agents
-const agents = [
-  { id: 1, name: 'Agent Smith' },
-  { id: 2, name: 'Agent 99' },
-  { id: 3, name: 'Agent Bond' },
-];
-
-interface Agent {
-  id: number;
-  name: string;
-}
+type Agent = Database['public']['Tables']['agents']['Row'];
 
 interface AgentContextType {
   selectedAgent: Agent | null;
@@ -23,7 +15,29 @@ interface AgentContextType {
 const AgentContext = createContext<AgentContextType | undefined>(undefined);
 
 export function AgentProvider({ children }: { children: ReactNode }) {
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(agents[0]);
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const fetchAgents = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        return;
+      }
+      const { data, error } = await supabase.from('agents').select('*');
+      if (error) {
+        console.error('Error fetching agents:', error);
+      } else if (data) {
+        setAgents(data);
+        if (data.length > 0) {
+          setSelectedAgent(data[0]);
+        }
+      }
+    };
+
+    fetchAgents();
+  }, [supabase]);
 
   return (
     <AgentContext.Provider value={{ selectedAgent, setSelectedAgent, agents }}>

@@ -1,23 +1,12 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Bell, FileCheck, Shield, BarChart, Settings, LogOut, FileWarning, UserCircle, Cpu, MemoryStick, HardDrive, BookText } from 'lucide-react';
-import Link from 'next/link';
+import { Bell, Shield, Cpu, MemoryStick, HardDrive } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
+import { createClient } from '@/lib/supabase/client';
+import { Database } from '@/lib/supabase/database.types';
 
-// --- MOCK DATA ---
-const initialRecentAlerts = [
-  { id: 1, severity: 'Critical', type: 'SSH Brute Force', ip: '192.168.1.105', time: '2m ago', details: '5 failed login attempts for user root.' },
-  { id: 2, severity: 'High', type: 'File Tampering', ip: '127.0.0.1', time: '5m ago', details: '/etc/passwd has been modified.' },
-  { id: 3, severity: 'Medium', type: 'New Process', ip: '127.0.0.1', time: '10m ago', details: 'A new process `nmap` was started.' },
-];
-
-const getInitialRecentLogs = (agentName: string) => [
-    { id: 1, service: 'sshd', time: '1m ago', message: `Accepted publickey for user from 192.168.1.109 on ${agentName}` },
-    { id: 2, service: 'kernel', time: '3m ago', message: `Firewall: *TCP_IN Blocked* IN=eth0 OUT= MAC=... on ${agentName}` },
-    { id: 3, service: 'sudo', time: '8m ago', message: `user : TTY=pts/0 ; PWD=/home/user ; USER=root ; COMMAND=/bin/bash on ${agentName}` },
-];
-
+type Alert = Database['public']['Tables']['alerts']['Row'];
 
 // --- HELPER COMPONENTS ---
 const ResourceUsage = ({ icon: Icon, title, value, color }: { icon: React.ElementType, title: string, value: number, color: string }) => (
@@ -53,6 +42,8 @@ export default function DashboardPage() {
   const [ram, setRam] = useState(60);
   const [storage, setStorage] = useState(82);
   const { selectedAgent } = useAgent();
+  const [recentAlerts, setRecentAlerts] = useState<Alert[]>([]);
+  const supabase = createClient();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -62,7 +53,26 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  const recentLogs = selectedAgent ? getInitialRecentLogs(selectedAgent.name) : [];
+  useEffect(() => {
+    if (!selectedAgent) return;
+
+    const fetchAlerts = async () => {
+      const { data, error } = await supabase
+        .from('alerts')
+        .select('*')
+        .eq('agent_id', selectedAgent.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (error) {
+        console.error('Error fetching alerts:', error);
+      } else {
+        setRecentAlerts(data);
+      }
+    };
+
+    fetchAlerts();
+  }, [selectedAgent, supabase]);
 
   return (
     <>
@@ -71,7 +81,7 @@ export default function DashboardPage() {
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <h2 className="text-3xl font-bold text-white">Dashboard</h2>
             <div className="flex items-center gap-4">
-              <StatusIndicator label="Agent Status" isOnline={true} />
+              <StatusIndicator label="Agent Status" isOnline={selectedAgent?.is_online || false} />
               <AgentSelector />
             </div>
         </header>
@@ -95,17 +105,18 @@ export default function DashboardPage() {
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
               <h3 className="text-xl font-bold text-white mb-4">Recent Alerts</h3>
               <div className="space-y-3">
-                {initialRecentAlerts.map(alert => (
+                {recentAlerts.map(alert => (
                   <div key={alert.id} className="flex gap-4 p-3 rounded-lg hover:bg-slate-800/50">
                      <div className={`mt-1 p-2 h-fit rounded-full ${
-                        alert.severity === 'Critical' ? 'bg-red-500/20 text-red-400' :
-                        alert.severity === 'High' ? 'bg-orange-500/20 text-orange-400' :
-                        'bg-yellow-500/20 text-yellow-400'
+                        alert.severity === 4 ? 'bg-red-500/20 text-red-400' :
+                        alert.severity === 3 ? 'bg-orange-500/20 text-orange-400' :
+                        alert.severity === 2 ? 'bg-yellow-500/20 text-yellow-400' :
+                        'bg-blue-500/20 text-blue-400'
                       }`}><Bell size={16}/></div>
                       <div>
-                        <p className="font-semibold text-white">{alert.type}</p>
-                        <p className="text-sm text-slate-400">{alert.details}</p>
-                        <p className="text-xs text-slate-500">{alert.time}</p>
+                        <p className="font-semibold text-white">{alert.title}</p>
+                        <p className="text-sm text-slate-400">{alert.message}</p>
+                        <p className="text-xs text-slate-500">{new Date(alert.created_at).toLocaleTimeString()}</p>
                       </div>
                   </div>
                 ))}
@@ -116,13 +127,7 @@ export default function DashboardPage() {
              <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
               <h3 className="text-xl font-bold text-white mb-4">Recent Logs</h3>
               <div className="font-mono text-xs text-slate-400 space-y-2">
-                {recentLogs.map(log => (
-                    <div key={log.id} className="flex gap-4">
-                        <span className="text-slate-500">{log.time}</span>
-                        <span className="font-bold text-cyan-400">{log.service}:</span>
-                        <span className="truncate">{log.message}</span>
-                    </div>
-                ))}
+                <p>Coming soon...</p>
               </div>
             </div>
         </div>

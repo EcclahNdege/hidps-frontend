@@ -15,7 +15,7 @@ export default function AgentSelector() {
       <select
         value={selectedAgent.id}
         onChange={(e) => {
-          const agent = agents.find((a) => a.id === parseInt(e.target.value));
+          const agent = agents.find((a) => a.id === e.target.value);
           setSelectedAgent(agent || null);
         }}
         className="appearance-none w-full md:w-48 bg-slate-800 border border-slate-700 text-white py-2 px-3 pr-8 rounded-lg focus:outline-none focus:bg-slate-700 focus:border-slate-500"

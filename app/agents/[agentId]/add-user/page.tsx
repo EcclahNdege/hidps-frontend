@@ -4,18 +4,13 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { UserPlus, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
-
-// Re-using the same mock data structure
-const agents = [
-  { id: 1, name: 'Agent Smith', ownerId: 1, ownerName: 'User 1' },
-  { id: 2, name: 'Agent 99', ownerId: 2, ownerName: 'User 2' },
-  { id: 3, name: 'Agent Bond', ownerId: 1, ownerName: 'User 1' },
-];
+import { useAgent } from '@/lib/agent-context';
 
 export default function AddUserToAgentPage() {
   const router = useRouter();
   const params = useParams();
-  const agentId = parseInt(params.agentId as string);
+  const agentId = params.agentId as string;
+  const { agents } = useAgent();
   const agent = agents.find(a => a.id === agentId);
   const [email, setEmail] = useState('');
   const [feedback, setFeedback] = useState('');
@@ -26,16 +21,16 @@ export default function AddUserToAgentPage() {
       setFeedback('Please enter an email address.');
       return;
     }
-    // In a real app, you would call an API to add the user.
+    // In a real app, you would call an API to find the user by email and then insert into agent_users
     console.log(`Adding user with email ${email} to agent ${agent?.name}`);
-    setFeedback(`User ${email} has been invited to join ${agent?.name}.`);
+    setFeedback(`An invitation has been sent to ${email} to join ${agent?.name}.`);
     setEmail('');
   };
 
   if (!agent) {
     return (
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-white">Agent not found</h2>
+      <div className="text-center text-white">
+        <h2 className="text-2xl font-bold">Agent not found</h2>
         <Link href="/agents" className="mt-4 inline-block text-blue-400 hover:text-blue-300">
           Go back to agents list
         </Link>

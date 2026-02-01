@@ -3,19 +3,24 @@ import { Plus, UserPlus, Shield } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
 import Link from 'next/link';
-
-// --- MOCK DATA ---
-const currentUser = { id: 1, name: 'User 1' };
-
-const agents = [
-  { id: 1, name: 'Agent Smith', ownerId: 1, ownerName: 'User 1' },
-  { id: 2, name: 'Agent 99', ownerId: 2, ownerName: 'User 2' },
-  { id: 3, name: 'Agent Bond', ownerId: 1, ownerName: 'User 1' },
-];
+import { createClient } from '@/lib/supabase/client';
+import { useEffect, useState } from 'react';
+import { User } from '@supabase/supabase-js';
 
 // --- MAIN AGENTS COMPONENT ---
 export default function AgentsPage() {
-  const { selectedAgent } = useAgent();
+  const { agents, selectedAgent } = useAgent();
+  const [user, setUser] = useState<User | null>(null);
+  const supabase = createClient();
+
+  useEffect(() => {
+    const getUser = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+    }
+    getUser();
+  }, [supabase]);
+
   return (
     <>
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -25,10 +30,10 @@ export default function AgentsPage() {
         </div>
         <div className="flex items-center gap-4">
           <AgentSelector />
-          <button className="flex items-center gap-2 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">
+          <Link href="/agent-setup" className="flex items-center gap-2 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">
             <Plus size={20} />
             Add Agent
-          </button>
+          </Link>
         </div>
       </header>
 
@@ -40,10 +45,9 @@ export default function AgentsPage() {
                 <Shield size={24} className="text-slate-400" />
                 <h3 className="text-xl font-bold text-white">{agent.name}</h3>
               </div>
-              <p className="text-slate-400">Owner: {agent.ownerName}</p>
             </div>
             <div className="mt-6">
-              {currentUser.id === agent.ownerId && (
+              {user?.id === agent.owner_id && (
                 <Link href={`/agents/${agent.id}/add-user`} className="flex items-center gap-2 w-full justify-center bg-slate-800 text-slate-300 py-2 px-4 rounded-lg hover:bg-slate-700">
                   <UserPlus size={18} />
                   Add Users

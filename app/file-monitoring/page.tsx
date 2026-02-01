@@ -1,61 +1,71 @@
 "use client";
-import { useState } from 'react';
-import { FileWarning, Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
+import { createClient } from '@/lib/supabase/client';
+import { Database } from '@/lib/supabase/database.types';
 
-// --- MOCK DATA ---
-interface File {
-  id: number;
-  path: string;
-  added: string;
-}
-
-interface Log {
-  id: number;
-  timestamp: string;
-  message: string;
-}
-
-const initialMonitoredFiles: File[] = [
-  { id: 1, path: '/etc/passwd', added: '2026-01-15T14:00:00Z' },
-  { id: 2, path: '/etc/shadow', added: '2026-01-15T14:00:00Z' },
-  { id: 3, path: '/var/log/auth.log', added: '2026-01-20T11:30:00Z' },
-];
-
-const getFileLogs = (agentName: string): Log[] => [
-    { id: 1, timestamp: '2026-02-01T09:55:00Z', message: `ALERT: Integrity check failed for '/etc/passwd' on ${agentName}. Hash mismatch.`},
-    { id: 2, timestamp: '2026-02-01T08:00:00Z', message: `OK: Integrity check passed for '/etc/shadow' on ${agentName}.`},
-    { id: 3, timestamp: '2026-02-01T07:55:00Z', message: `OK: Integrity check passed for '/etc/passwd' on ${agentName}.`},
-];
+type MonitoredFile = Database['public']['Tables']['monitored_files']['Row'];
 
 // --- MAIN FILE MONITORING PAGE COMPONENT ---
 export default function FileMonitoringPage() {
   const { selectedAgent } = useAgent();
-  const [monitoredFiles, setMonitoredFiles] = useState<File[]>(initialMonitoredFiles);
+  const [monitoredFiles, setMonitoredFiles] = useState<MonitoredFile[]>([]);
   const [newFilePath, setNewFilePath] = useState('');
-  const fileLogs = selectedAgent ? getFileLogs(selectedAgent.name) : [];
+  const supabase = createClient();
 
-  const handleAddFile = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newFilePath.trim() === '') return;
+  useEffect(() => {
+    if (!selectedAgent) return;
 
-    const newFile: File = {
-      id: Date.now(),
-      path: newFilePath.trim(),
-      added: new Date().toISOString(),
+    const fetchMonitoredFiles = async () => {
+      const { data, error } = await supabase
+        .from('monitored_files')
+        .select('*')
+        .eq('agent_id', selectedAgent.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching monitored files:', error);
+      } else {
+        setMonitoredFiles(data);
+      }
     };
 
-    setMonitoredFiles([newFile, ...monitoredFiles]);
-    setNewFilePath('');
-    // In a real app, this would trigger a backend API call and generate an alert.
-    console.log(`ALERT on ${selectedAgent?.name}: New file '${newFile.path}' added to monitoring.`);
+    fetchMonitoredFiles();
+  }, [selectedAgent, supabase]);
+
+  const handleAddFile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newFilePath.trim() === '' || !selectedAgent) return;
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const newFile = {
+      agent_id: selectedAgent.id,
+      file_path: newFilePath.trim(),
+      added_by: session.user.id,
+    };
+
+    const { data, error } = await supabase.from('monitored_files').insert(newFile).select();
+
+    if (error) {
+        console.error('Error adding file:', error);
+    } else if (data) {
+        setMonitoredFiles([data[0], ...monitoredFiles]);
+        setNewFilePath('');
+    }
   };
 
-  const handleRemoveFile = (id: number, path: string) => {
-    setMonitoredFiles(monitoredFiles.filter(f => f.id !== id));
-     // In a real app, this would trigger a backend API call and generate an alert.
-    console.log(`ALERT on ${selectedAgent?.name}: File '${path}' removed from monitoring.`);
+  const handleRemoveFile = async (id: string) => {
+    const { error } = await supabase.from('monitored_files').delete().eq('id', id);
+    if (error) {
+        console.error('Error deleting file:', error);
+    }
+    else {
+        setMonitoredFiles(monitoredFiles.filter(f => f.id !== id));
+    }
   };
 
   return (
@@ -96,10 +106,10 @@ export default function FileMonitoringPage() {
                         <tbody>
                             {monitoredFiles.map(file => (
                                 <tr key={file.id} className="border-b border-slate-800 hover:bg-slate-800/50">
-                                    <td className="p-4 font-mono text-cyan-400">{file.path}</td>
-                                    <td className="p-4 text-slate-500">{new Date(file.added).toLocaleDateString()}</td>
+                                    <td className="p-4 font-mono text-cyan-400">{file.file_path}</td>
+                                    <td className="p-4 text-slate-500">{new Date(file.created_at).toLocaleDateString()}</td>
                                     <td className="p-4">
-                                        <button onClick={() => handleRemoveFile(file.id, file.path)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-full"><Trash2 size={16}/></button>
+                                        <button onClick={() => handleRemoveFile(file.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-full"><Trash2 size={16}/></button>
                                     </td>
                                 </tr>
                             ))}
@@ -112,14 +122,7 @@ export default function FileMonitoringPage() {
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
                 <h3 className="text-xl font-bold text-white mb-4">Recent File Logs</h3>
                  <div className="font-mono text-xs text-slate-400 space-y-3">
-                    {fileLogs.map(log => (
-                        <div key={log.id} className="flex flex-col">
-                            <span className="text-slate-500">{new Date(log.timestamp).toLocaleString()}</span>
-                            <p className={log.message.startsWith('ALERT') ? 'text-red-400' : 'text-green-400'}>
-                                {log.message}
-                            </p>
-                        </div>
-                    ))}
+                    <p>Coming soon...</p>
                 </div>
             </div>
         </div>
