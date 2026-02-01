@@ -3,12 +3,22 @@ import { Shield, BarChart, Bell, BookText, UserCircle, LogOut, FileWarning } fro
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { useRouter } from 'next/navigation';
+import { createClient } from '../../lib/supabase/client';
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
+  };
 
   const navItems = [
     { href: '/dashboard', icon: BarChart, label: 'Dashboard' },
@@ -45,9 +55,9 @@ export default function DashboardLayout({
           <Link href="/profile" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg">
             <UserCircle className="mr-3" /> Profile
           </Link>
-          <Link href="/login" className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg">
+          <button onClick={handleLogout} className="flex items-center py-2 px-3 text-slate-400 hover:bg-slate-800 rounded-lg w-full">
             <LogOut className="mr-3" /> Logout
-          </Link>
+          </button>
         </div>
       </aside>
       <main className="flex-1 p-6 md:p-8">{children}</main>

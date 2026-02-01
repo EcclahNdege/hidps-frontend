@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase-client';
+import { createClient } from '../../lib/supabase/client';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const supabase = createClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +26,7 @@ export default function LoginPage() {
         setError(error.message);
       } else {
         router.push('/dashboard');
+        router.refresh();
       }
     } catch (error: any) {
       setError(error.message);

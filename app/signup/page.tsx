@@ -3,15 +3,17 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase-client';
+import { createClient } from '../../lib/supabase/client';
 
 export default function SignupPage() {
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const supabase = createClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,10 +27,16 @@ export default function SignupPage() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            full_name: displayName,
+          }
+        }
       });
       if (error) {
         setError(error.message);
-      } else {
+      }
+      else {
         // Redirect to a page that tells the user to check their email
         router.push('/confirm-email');
       }
@@ -45,6 +53,22 @@ export default function SignupPage() {
         <h1 className="text-4xl font-bold text-center mb-8">Create Account</h1>
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && <p className="text-red-500 text-center">{error}</p>}
+          <div>
+            <label
+              htmlFor="displayName"
+              className="block text-sm font-medium text-slate-400"
+            >
+              Display Name
+            </label>
+            <input
+              type="text"
+              id="displayName"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="mt-1 block w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
           <div>
             <label
               htmlFor="email"
