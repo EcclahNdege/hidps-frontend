@@ -3,19 +3,34 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '../../lib/supabase-client';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle login logic here
-    console.log({ email, password });
-
-    // Redirect to dashboard
-    router.push('/dashboard');
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        setError(error.message);
+      } else {
+        router.push('/dashboard');
+      }
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -23,12 +38,13 @@ export default function LoginPage() {
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 md:p-12 w-full max-w-md">
         <h1 className="text-4xl font-bold text-center mb-8">Log In</h1>
         <form onSubmit={handleSubmit} className="space-y-6">
+          {error && <p className="text-red-500 text-center">{error}</p>}
           <div>
             <label
               htmlFor="email"
               className="block text-sm font-medium text-slate-400"
             >
-              Username or Email Address
+              Email Address
             </label>
             <input
               type="email"
@@ -58,8 +74,9 @@ export default function LoginPage() {
           <button
             type="submit"
             className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-all"
+            disabled={loading}
           >
-            Log In
+            {loading ? 'Logging in...' : 'Log In'}
           </button>
         </form>
         <p className="text-center text-slate-400 mt-6">

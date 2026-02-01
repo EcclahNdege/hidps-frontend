@@ -3,25 +3,40 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '../../lib/supabase-client';
 
 export default function SignupPage() {
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle signup logic here
     if (password !== confirmPassword) {
-      alert("Passwords don't match!");
+      setError("Passwords don't match!");
       return;
     }
-    console.log({ username, email, password });
-    
-    // Redirect to agent setup page
-    router.push('/agent-setup');
+    setLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+      if (error) {
+        setError(error.message);
+      } else {
+        // Redirect to a page that tells the user to check their email
+        router.push('/confirm-email');
+      }
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -29,22 +44,7 @@ export default function SignupPage() {
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 md:p-12 w-full max-w-md">
         <h1 className="text-4xl font-bold text-center mb-8">Create Account</h1>
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label
-              htmlFor="username"
-              className="block text-sm font-medium text-slate-400"
-            >
-              Username
-            </label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              required
-            />
-          </div>
+          {error && <p className="text-red-500 text-center">{error}</p>}
           <div>
             <label
               htmlFor="email"
@@ -96,8 +96,9 @@ export default function SignupPage() {
           <button
             type="submit"
             className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-all"
+            disabled={loading}
           >
-            Sign Up
+            {loading ? 'Signing up...' : 'Sign Up'}
           </button>
         </form>
         <p className="text-center text-slate-400 mt-6">
