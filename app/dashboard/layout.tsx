@@ -14,7 +14,7 @@ export default function DashboardLayout({
     { href: '/dashboard', icon: BarChart, label: 'Dashboard' },
     { href: '/alerts', icon: Bell, label: 'Alerts' },
     { href: '/logs', icon: BookText, label: 'Logs' },
-    { href: '#', icon: Shield, label: 'Firewall' },
+    { href: '/firewall', icon: Shield, label: 'Firewall' },
     { href: '/file-monitoring', icon: FileWarning, label: 'File Monitoring' },
   ];
 

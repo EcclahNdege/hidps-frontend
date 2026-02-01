@@ -1,0 +1,181 @@
+"use client";
+import { useState } from 'react';
+import { Shield, ShieldOff, Plus, Trash2, ChevronDown } from 'lucide-react';
+
+// --- MOCK DATA & TYPES ---
+type Policy = 'allow' | 'deny' | 'reject';
+interface Rule {
+  id: number;
+  action: 'allow' | 'deny';
+  port: string;
+  protocol: 'tcp' | 'udp' | 'any';
+  from: string;
+}
+
+const initialRules: Rule[] = [
+  { id: 1, action: 'allow', port: '22', protocol: 'tcp', from: 'any' },
+  { id: 2, action: 'allow', port: '80', protocol: 'tcp', from: 'any' },
+  { id: 3, action: 'allow', port: '443', protocol: 'tcp', from: 'any' },
+  { id: 4, action: 'deny', port: '3306', protocol: 'tcp', from: '10.0.0.0/8' },
+];
+
+// --- MAIN FIREWALL PAGE COMPONENT ---
+export default function FirewallPage() {
+  const [isFirewallActive, setIsFirewallActive] = useState(true);
+  const [defaultIncoming, setDefaultIncoming] = useState<Policy>('deny');
+  const [defaultOutgoing, setDefaultOutgoing] = useState<Policy>('allow');
+  const [rules, setRules] = useState<Rule[]>(initialRules);
+  
+  // State for the new rule form
+  const [newRuleAction, setNewRuleAction] = useState<'allow' | 'deny'>('allow');
+  const [newRulePort, setNewRulePort] = useState('');
+  const [newRuleProtocol, setNewRuleProtocol] = useState<'tcp' | 'udp'>('tcp');
+  const [newRuleFrom, setNewRuleFrom] = useState('any');
+
+  const handleToggleFirewall = () => {
+    setIsFirewallActive(!isFirewallActive);
+    console.log(`ALERT: Firewall has been ${!isFirewallActive ? 'ENABLED' : 'DISABLED'}.`);
+  };
+
+  const handlePolicyChange = (policyType: 'incoming' | 'outgoing', value: Policy) => {
+    if (policyType === 'incoming') setDefaultIncoming(value);
+    else setDefaultOutgoing(value);
+    console.log(`ALERT: Default ${policyType} policy changed to ${value}.`);
+  };
+
+  const handleAddRule = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRulePort) return;
+    const newRule: Rule = {
+      id: Date.now(),
+      action: newRuleAction,
+      port: newRulePort,
+      protocol: newRuleProtocol,
+      from: newRuleFrom || 'any',
+    };
+    setRules([newRule, ...rules]);
+    console.log(`ALERT: New firewall rule added: ${newRule.action.toUpperCase()} ${newRule.port}/${newRule.protocol} from ${newRule.from}`);
+    // Reset form
+    setNewRulePort('');
+    setNewRuleFrom('any');
+  };
+
+  const handleRemoveRule = (id: number) => {
+    const ruleToRemove = rules.find(r => r.id === id);
+    setRules(rules.filter(r => r.id !== id));
+    if(ruleToRemove) {
+        console.log(`ALERT: Firewall rule removed: ${ruleToRemove.action.toUpperCase()} ${ruleToRemove.port}/${ruleToRemove.protocol} from ${ruleToRemove.from}`);
+    }
+  };
+
+  const PolicyDropdown = ({ value, onChange }: { value: Policy, onChange: (v: Policy) => void }) => (
+    <div className="relative">
+        <select
+            value={value}
+            onChange={(e) => onChange(e.target.value as Policy)}
+            className="appearance-none w-full bg-slate-800 border border-slate-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+            <option value="allow">Allow</option>
+            <option value="deny">Deny</option>
+            <option value="reject">Reject</option>
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+    </div>
+  );
+
+  return (
+    <>
+      <header className="mb-8">
+        <h2 className="text-3xl font-bold text-white">Firewall Management</h2>
+        <p className="text-slate-400">Configure and manage UFW (Uncomplicated Firewall) policies and rules.</p>
+      </header>
+
+      <div className="space-y-8">
+        {/* Firewall Status & Default Policies */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+                <h3 className="text-lg font-semibold text-white mb-4">Firewall Status</h3>
+                <button 
+                    onClick={handleToggleFirewall}
+                    className={`w-full flex items-center justify-center gap-3 py-3 rounded-lg font-semibold transition-colors ${
+                        isFirewallActive
+                            ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
+                            : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                    }`}
+                >
+                    {isFirewallActive ? <Shield size={20} /> : <ShieldOff size={20} />}
+                    {isFirewallActive ? 'Active' : 'Inactive'}
+                </button>
+            </div>
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+                 <h3 className="text-lg font-semibold text-white mb-4">Default Incoming</h3>
+                 <PolicyDropdown value={defaultIncoming} onChange={(v) => handlePolicyChange('incoming', v)} />
+            </div>
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+                 <h3 className="text-lg font-semibold text-white mb-4">Default Outgoing</h3>
+                 <PolicyDropdown value={defaultOutgoing} onChange={(v) => handlePolicyChange('outgoing', v)} />
+            </div>
+        </div>
+
+        {/* Firewall Rules */}
+        <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+            <h3 className="text-lg font-semibold text-white mb-4">Firewall Rules</h3>
+            {/* Add Rule Form */}
+            <form onSubmit={handleAddRule} className="grid grid-cols-2 md:grid-cols-5 gap-3 items-end mb-6 p-4 bg-slate-950/50 rounded-lg">
+                <div className="col-span-2 md:col-span-1">
+                    <label className="text-sm font-medium text-slate-400 mb-1 block">Action</label>
+                    <select value={newRuleAction} onChange={e => setNewRuleAction(e.target.value as 'allow' | 'deny')} className="w-full bg-slate-800 border-slate-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="allow">Allow</option>
+                        <option value="deny">Deny</option>
+                    </select>
+                </div>
+                 <div>
+                    <label className="text-sm font-medium text-slate-400 mb-1 block">Port</label>
+                    <input type="text" placeholder="e.g., 80" value={newRulePort} onChange={e => setNewRulePort(e.target.value)} className="w-full bg-slate-800 border-slate-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                </div>
+                 <div>
+                    <label className="text-sm font-medium text-slate-400 mb-1 block">Protocol</label>
+                     <select value={newRuleProtocol} onChange={e => setNewRuleProtocol(e.target.value as 'tcp' | 'udp')} className="w-full bg-slate-800 border-slate-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        <option value="tcp">TCP</option>
+                        <option value="udp">UDP</option>
+                    </select>
+                </div>
+                 <div>
+                    <label className="text-sm font-medium text-slate-400 mb-1 block">From</label>
+                    <input type="text" placeholder="any" value={newRuleFrom} onChange={e => setNewRuleFrom(e.target.value)} className="w-full bg-slate-800 border-slate-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                </div>
+                <button type="submit" className="col-span-2 md:col-span-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg h-10">
+                    <Plus size={18}/> Add Rule
+                </button>
+            </form>
+
+            {/* Rules Table */}
+            <table className="w-full text-left">
+                <thead>
+                    <tr className="border-b border-slate-800 text-sm text-slate-400">
+                        <th className="p-4">Action</th>
+                        <th className="p-4">Port/Service</th>
+                        <th className="p-4">Protocol</th>
+                        <th className="p-4">From</th>
+                        <th className="p-4"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rules.map(rule => (
+                        <tr key={rule.id} className="border-b border-slate-800 hover:bg-slate-800/50">
+                            <td className={`p-4 font-semibold ${rule.action === 'allow' ? 'text-green-400' : 'text-red-400'}`}>{rule.action.toUpperCase()}</td>
+                            <td className="p-4 font-mono">{rule.port}</td>
+                            <td className="p-4 font-mono">{rule.protocol.toUpperCase()}</td>
+                            <td className="p-4 font-mono">{rule.from}</td>
+                            <td className="p-4 text-right">
+                                <button onClick={() => handleRemoveRule(rule.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-full"><Trash2 size={16}/></button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+      </div>
+    </>
+  );
+}
