@@ -1,27 +1,51 @@
 import { updateSession } from './lib/supabase/middleware'
 import { type NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
 
 export async function proxy(request: NextRequest) {
-  // This logic is not needed because the `updateSession` function handles
-  // the session refresh.
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
 
-  // if (
-  //   request.nextUrl.pathname.startsWith('/login') ||
-  //   request.nextUrl.pathname.startsWith('/signup')
-  // ) {
-  //   if (user) {
-  //     return NextResponse.redirect(new URL('/dashboard', request.url))
-  //   }
-  //   return
-  // }
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
 
-  // if (
-  //   !user &&
-  //   !request.nextUrl.pathname.startsWith('/login') &&
-  //   !request.nextUrl.pathname.startsWith('/signup')
-  // ) {
-  //   return NextResponse.redirect(new URL('/login', request.url))
-  // }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const path = request.nextUrl.pathname
+  const isPublicRoute = path === '/' || path.startsWith('/login') || path.startsWith('/signup') || path.startsWith('/confirm-email')
+
+  if (!user && !isPublicRoute) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  if (user && (path.startsWith('/login') || path.startsWith('/signup'))) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
 
   return await updateSession(request)
 }
