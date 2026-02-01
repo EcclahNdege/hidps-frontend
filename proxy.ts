@@ -2,10 +2,6 @@ import { updateSession } from './lib/supabase/middleware'
 import { type NextRequest, NextResponse } from 'next/server'
 
 export async function proxy(request: NextRequest) {
-  const {
-    data: { user },
-  } = await updateSession(request)
-
   // This logic is not needed because the `updateSession` function handles
   // the session refresh.
 
