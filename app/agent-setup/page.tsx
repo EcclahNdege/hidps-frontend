@@ -1,5 +1,5 @@
 "use client";
-import { CheckCircle, Download, Terminal } from 'lucide-react';
+import { CheckCircle, Download, Terminal, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AgentSetupPage() {
@@ -52,11 +52,20 @@ export default function AgentSetupPage() {
               <p className="text-slate-300">$ sudo ./install.sh</p>
             </div>
           </div>
+
+          <div>
+            <h2 className="text-2xl font-bold flex items-center mb-4">
+              <ShieldCheck className="mr-3 text-emerald-500" />
+              3. Confirm Installation
+            </h2>
+            <p className="text-slate-400 mb-4">
+              After the script runs, the agent will automatically open a new tab in your browser to confirm a successful connection. 
+              Once confirmed, you will be redirected to your dashboard.
+            </p>
+          </div>
           
           <div className="text-center pt-6">
-            <Link href="/dashboard" className="text-blue-500 hover:underline">
-              Continue to Dashboard &rarr;
-            </Link>
+            <p className="text-slate-500">Finished? <Link href="/dashboard" className="text-blue-500 hover:underline">Go to Dashboard &rarr;</Link></p>
           </div>
         </div>
       </div>
