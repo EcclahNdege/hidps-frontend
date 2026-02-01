@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { createClient } from '../../lib/supabase/client';
-import { UserCircle, Mail, Bell, Save } from 'lucide-react';
+import { UserCircle, Mail, Bell, Save, Lock, X } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
 
 export default function ProfilePage() {
@@ -11,7 +11,10 @@ export default function ProfilePage() {
   const [notifications, setNotifications] = useState(true);
   const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(true);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const supabase = createClient();
 
@@ -29,7 +32,7 @@ export default function ProfilePage() {
     fetchUser();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
@@ -50,19 +53,31 @@ export default function ProfilePage() {
 
       if (updateError) throw updateError;
 
-      // Update password if a new one is provided
-      if (newPassword) {
-        const { error: passwordError } = await supabase.auth.updateUser({ password: newPassword });
-        if (passwordError) throw passwordError;
-      }
-
       setSuccess('Profile updated successfully!');
-      setNewPassword('');
 
     } catch (error: any) {
       setError(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setModalError(null);
+    setPasswordLoading(true);
+
+    try {
+      const { error: passwordError } = await supabase.auth.updateUser({ password: newPassword });
+      if (passwordError) throw passwordError;
+
+      setSuccess('Password updated successfully!');
+      setNewPassword('');
+      setIsPasswordModalOpen(false);
+    } catch (error: any) {
+      setModalError(error.message);
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -78,7 +93,7 @@ export default function ProfilePage() {
       </header>
 
       <div className="bg-slate-900 max-w-2xl rounded-xl border border-slate-800">
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleProfileUpdate}>
           <div className="p-6 space-y-6">
             {error && <p className="text-red-500 text-center">{error}</p>}
             {success && <p className="text-green-500 text-center">{success}</p>}
@@ -133,18 +148,16 @@ export default function ProfilePage() {
               </label>
             </div>
             
-             {/* Change Password section */}
-            <div className="pt-4">
-                 <h4 className="font-medium text-white mb-2">Change Password</h4>
-                 <div className="space-y-4">
-                    <input 
-                      type="password" 
-                      placeholder="New Password"  
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    />
-                 </div>
+            {/* Change Password Trigger */}
+            <div className="pt-4 border-t border-slate-800">
+                 <h4 className="font-medium text-white mb-3">Security</h4>
+                 <button
+                    type="button"
+                    onClick={() => setIsPasswordModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg border border-slate-700 transition-colors"
+                 >
+                    <Lock size={16} /> Change Password
+                 </button>
             </div>
 
           </div>
@@ -155,6 +168,51 @@ export default function ProfilePage() {
           </footer>
         </form>
       </div>
+
+      {/* Password Modal */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-slate-900 w-full max-w-md rounded-xl border border-slate-800 shadow-2xl p-6 m-4">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white">Change Password</h3>
+                <button onClick={() => setIsPasswordModalOpen(false)} className="text-slate-400 hover:text-white">
+                    <X size={24} />
+                </button>
+            </div>
+            
+            <form onSubmit={handlePasswordUpdate}>
+                {modalError && <p className="text-red-500 text-sm mb-4 text-center">{modalError}</p>}
+                <div className="mb-6">
+                    <label className="block text-sm font-medium text-slate-400 mb-2">New Password</label>
+                    <input 
+                      type="password" 
+                      placeholder="Enter new password"  
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      required
+                    />
+                </div>
+                <div className="flex justify-end gap-3">
+                    <button 
+                        type="button" 
+                        onClick={() => setIsPasswordModalOpen(false)}
+                        className="px-4 py-2 text-slate-300 hover:text-white font-medium"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        type="submit" 
+                        disabled={passwordLoading}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg disabled:opacity-50"
+                    >
+                        {passwordLoading ? 'Updating...' : 'Update Password'}
+                    </button>
+                </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
