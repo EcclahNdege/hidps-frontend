@@ -2,6 +2,7 @@
 import { Plus, UserPlus, Shield } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
+import Link from 'next/link';
 
 // --- MOCK DATA ---
 const currentUser = { id: 1, name: 'User 1' };
@@ -43,10 +44,10 @@ export default function AgentsPage() {
             </div>
             <div className="mt-6">
               {currentUser.id === agent.ownerId && (
-                <button className="flex items-center gap-2 w-full justify-center bg-slate-800 text-slate-300 py-2 px-4 rounded-lg hover:bg-slate-700">
+                <Link href={`/agents/${agent.id}/add-user`} className="flex items-center gap-2 w-full justify-center bg-slate-800 text-slate-300 py-2 px-4 rounded-lg hover:bg-slate-700">
                   <UserPlus size={18} />
                   Add Users
-                </button>
+                </Link>
               )}
             </div>
           </div>
