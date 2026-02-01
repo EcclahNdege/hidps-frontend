@@ -3,13 +3,25 @@ import { useState } from 'react';
 import { FileWarning, Plus, Trash2 } from 'lucide-react';
 
 // --- MOCK DATA ---
-const initialMonitoredFiles = [
+interface File {
+  id: number;
+  path: string;
+  added: string;
+}
+
+interface Log {
+  id: number;
+  timestamp: string;
+  message: string;
+}
+
+const initialMonitoredFiles: File[] = [
   { id: 1, path: '/etc/passwd', added: '2026-01-15T14:00:00Z' },
   { id: 2, path: '/etc/shadow', added: '2026-01-15T14:00:00Z' },
   { id: 3, path: '/var/log/auth.log', added: '2026-01-20T11:30:00Z' },
 ];
 
-const fileLogs = [
+const fileLogs: Log[] = [
     { id: 1, timestamp: '2026-02-01T09:55:00Z', message: 'ALERT: Integrity check failed for `/etc/passwd`. Hash mismatch.'},
     { id: 2, timestamp: '2026-02-01T08:00:00Z', message: 'OK: Integrity check passed for `/etc/shadow`.'},
     { id: 3, timestamp: '2026-02-01T07:55:00Z', message: 'OK: Integrity check passed for `/etc/passwd`.'},
@@ -17,14 +29,14 @@ const fileLogs = [
 
 // --- MAIN FILE MONITORING PAGE COMPONENT ---
 export default function FileMonitoringPage() {
-  const [monitoredFiles, setMonitoredFiles] = useState(initialMonitoredFiles);
+  const [monitoredFiles, setMonitoredFiles] = useState<File[]>(initialMonitoredFiles);
   const [newFilePath, setNewFilePath] = useState('');
 
-  const handleAddFile = (e) => {
+  const handleAddFile = (e: React.FormEvent) => {
     e.preventDefault();
     if (newFilePath.trim() === '') return;
 
-    const newFile = {
+    const newFile: File = {
       id: Date.now(),
       path: newFilePath.trim(),
       added: new Date().toISOString(),
@@ -36,7 +48,7 @@ export default function FileMonitoringPage() {
     console.log(`ALERT: New file '${newFile.path}' added to monitoring.`);
   };
 
-  const handleRemoveFile = (id, path) => {
+  const handleRemoveFile = (id: number, path: string) => {
     setMonitoredFiles(monitoredFiles.filter(f => f.id !== id));
      // In a real app, this would trigger a backend API call and generate an alert.
     console.log(`ALERT: File '${path}' removed from monitoring.`);

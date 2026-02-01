@@ -4,7 +4,19 @@ import { Bell, FileWarning, Shield, Users, Trash2, X, CheckCircle, Sidebar, BarC
 import Link from 'next/link';
 
 // --- MOCK DATA ---
-const initialAlerts = [
+type Severity = 'Critical' | 'High' | 'Medium' | 'Low';
+
+interface Alert {
+  id: number;
+  type: string;
+  severity: Severity;
+  title: string;
+  details: string;
+  timestamp: string;
+  resolved: boolean;
+}
+
+const initialAlerts: Alert[] = [
   { id: 1, type: 'Login', severity: 'Critical', title: 'SSH Brute Force Detected', details: 'Multiple failed login attempts from IP 192.168.1.105 for user `root`.', timestamp: '2026-02-01T10:00:00Z', resolved: false },
   { id: 2, type: 'File Monitoring', severity: 'High', title: 'Critical File Modified', details: '`/etc/passwd` was modified. Check for unauthorized changes.', timestamp: '2026-02-01T09:55:00Z', resolved: false },
   { id: 3, type: 'Process', severity: 'Medium', title: 'Suspicious Process Started', details: 'A new process `nmap` was started by user `www-data`.', timestamp: '2026-02-01T09:50:00Z', resolved: true },
@@ -20,7 +32,7 @@ const alertTypes = [
     { name: 'Process', icon: Bell },
 ];
 
-const getSeverityStyling = (severity) => {
+const getSeverityStyling = (severity: Severity) => {
     switch (severity) {
         case 'Critical': return 'bg-red-500/20 text-red-400 border-red-500/30';
         case 'High': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
@@ -31,16 +43,16 @@ const getSeverityStyling = (severity) => {
 
 // --- MAIN ALERTS PAGE COMPONENT ---
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState(initialAlerts);
-  const [selectedAlert, setSelectedAlert] = useState(null);
+  const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [activeFilter, setActiveFilter] = useState('All');
 
-  const handleResolve = (id) => {
+  const handleResolve = (id: number) => {
     setAlerts(alerts.map(a => a.id === id ? { ...a, resolved: true } : a));
     if (selectedAlert?.id === id) setSelectedAlert(null);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = (id: number) => {
     setAlerts(alerts.filter(a => a.id !== id));
     if (selectedAlert?.id === id) setSelectedAlert(null);
   };
