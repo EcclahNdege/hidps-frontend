@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import { Bell, FileCheck, Shield, BarChart, Settings, LogOut, FileWarning, UserCircle, Cpu, MemoryStick, HardDrive, BookText } from 'lucide-react';
 import Link from 'next/link';
+import AgentSelector from '@/components/AgentSelector';
+import { useAgent } from '@/lib/agent-context';
 
 // --- MOCK DATA ---
 const initialRecentAlerts = [
@@ -10,10 +12,10 @@ const initialRecentAlerts = [
   { id: 3, severity: 'Medium', type: 'New Process', ip: '127.0.0.1', time: '10m ago', details: 'A new process `nmap` was started.' },
 ];
 
-const initialRecentLogs = [
-    { id: 1, service: 'sshd', time: '1m ago', message: 'Accepted publickey for user from 192.168.1.109' },
-    { id: 2, service: 'kernel', time: '3m ago', message: 'Firewall: *TCP_IN Blocked* IN=eth0 OUT= MAC=...' },
-    { id: 3, service: 'sudo', time: '8m ago', message: 'user : TTY=pts/0 ; PWD=/home/user ; USER=root ; COMMAND=/bin/bash' },
+const getInitialRecentLogs = (agentName: string) => [
+    { id: 1, service: 'sshd', time: '1m ago', message: `Accepted publickey for user from 192.168.1.109 on ${agentName}` },
+    { id: 2, service: 'kernel', time: '3m ago', message: `Firewall: *TCP_IN Blocked* IN=eth0 OUT= MAC=... on ${agentName}` },
+    { id: 3, service: 'sudo', time: '8m ago', message: `user : TTY=pts/0 ; PWD=/home/user ; USER=root ; COMMAND=/bin/bash on ${agentName}` },
 ];
 
 
@@ -50,6 +52,7 @@ export default function DashboardPage() {
   const [cpu, setCpu] = useState(35);
   const [ram, setRam] = useState(60);
   const [storage, setStorage] = useState(82);
+  const { selectedAgent } = useAgent();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -59,13 +62,18 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
+  const recentLogs = selectedAgent ? getInitialRecentLogs(selectedAgent.name) : [];
+
   return (
     <>
       {/* Main Content */}
       
-        <header className="flex justify-between items-center mb-8">
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <h2 className="text-3xl font-bold text-white">Dashboard</h2>
-            <StatusIndicator label="Agent Status" isOnline={true} />
+            <div className="flex items-center gap-4">
+              <StatusIndicator label="Agent Status" isOnline={true} />
+              <AgentSelector />
+            </div>
         </header>
 
         {/* Resource Usage Grid */}
@@ -108,7 +116,7 @@ export default function DashboardPage() {
              <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
               <h3 className="text-xl font-bold text-white mb-4">Recent Logs</h3>
               <div className="font-mono text-xs text-slate-400 space-y-2">
-                {initialRecentLogs.map(log => (
+                {recentLogs.map(log => (
                     <div key={log.id} className="flex gap-4">
                         <span className="text-slate-500">{log.time}</span>
                         <span className="font-bold text-cyan-400">{log.service}:</span>

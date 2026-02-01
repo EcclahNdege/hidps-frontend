@@ -2,12 +2,14 @@
 import { useState } from 'react';
 import { BookText, Shield, Users, FileWarning, Bell, BarChart, UserCircle, LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
+import AgentSelector from '@/components/AgentSelector';
+import { useAgent } from '@/lib/agent-context';
 
 // --- MOCK DATA ---
-const initialLogs = [
-  { id: 1, type: 'Login', service: 'sshd', timestamp: '2026-02-01T10:30:00Z', message: 'Accepted publickey for user `admin` from 192.168.1.109 port 56422' },
+const getInitialLogs = (agentName: string) => [
+  { id: 1, type: 'Login', service: 'sshd', timestamp: '2026-02-01T10:30:00Z', message: `Accepted publickey for user 'admin' from 192.168.1.109 on ${agentName}` },
   { id: 2, type: 'Firewall', service: 'kernel', timestamp: '2026-02-01T10:29:55Z', message: 'Firewall: *TCP_IN Blocked* IN=eth0 OUT= MAC=... SRC=103.22.11.4 DST=... LEN=40' },
-  { id: 3, type: 'File Monitoring', service: 'sentinel-agent', timestamp: '2026-02-01T10:28:10Z', message: 'File integrity check passed for `/etc/shadow`.' },
+  { id: 3, type: 'File Monitoring', service: 'sentinel-agent', timestamp: '2026-02-01T10:28:10Z', message: `File integrity check passed for '/etc/shadow' on ${agentName}.` },
   { id: 4, type: 'Process', service: 'systemd', timestamp: '2026-02-01T10:27:00Z', message: 'Started session c5 of user `admin`.' },
   { id: 5, type: 'Login', service: 'sudo', timestamp: '2026-02-01T10:25:00Z', message: 'user : TTY=pts/0 ; PWD=/home/user ; USER=root ; COMMAND=/usr/bin/apt update' },
   { id: 6, type: 'Firewall', service: 'kernel', timestamp: '2026-02-01T10:24:30Z', message: 'Firewall: *UDP_OUT Allow* IN= OUT=eth0 SRC=... DST=8.8.8.8 LEN=57' },
@@ -23,6 +25,8 @@ const logTypes = [
 
 // --- MAIN LOGS PAGE COMPONENT ---
 export default function LogsPage() {
+  const { selectedAgent } = useAgent();
+  const initialLogs = selectedAgent ? getInitialLogs(selectedAgent.name) : [];
   const [logs, setLogs] = useState(initialLogs);
   const [activeFilter, setActiveFilter] = useState('All');
 
@@ -32,9 +36,12 @@ export default function LogsPage() {
     <>
       {/* Main Content */}
       
-        <header className="mb-8">
-          <h2 className="text-3xl font-bold text-white">System Logs</h2>
-          <p className="text-slate-400">Review raw event logs from the Sentinel agent and system services.</p>
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h2 className="text-3xl font-bold text-white">System Logs</h2>
+            <p className="text-slate-400">Review raw event logs from the Sentinel agent and system services.</p>
+          </div>
+          <AgentSelector />
         </header>
 
         {/* Filter Tabs */}

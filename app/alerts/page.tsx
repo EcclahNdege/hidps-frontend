@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { Bell, FileWarning, Shield, Users, Trash2, X, CheckCircle, Sidebar, BarChart, BookText, UserCircle, LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
+import AgentSelector from '@/components/AgentSelector';
+import { useAgent } from '@/lib/agent-context';
 
 // --- MOCK DATA ---
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low';
@@ -16,9 +18,9 @@ interface Alert {
   resolved: boolean;
 }
 
-const initialAlerts: Alert[] = [
-  { id: 1, type: 'Login', severity: 'Critical', title: 'SSH Brute Force Detected', details: 'Multiple failed login attempts from IP 192.168.1.105 for user `root`.', timestamp: '2026-02-01T10:00:00Z', resolved: false },
-  { id: 2, type: 'File Monitoring', severity: 'High', title: 'Critical File Modified', details: '`/etc/passwd` was modified. Check for unauthorized changes.', timestamp: '2026-02-01T09:55:00Z', resolved: false },
+const getInitialAlerts = (agentName: string): Alert[] => [
+  { id: 1, type: 'Login', severity: 'Critical', title: `SSH Brute Force on ${agentName}`, details: 'Multiple failed login attempts from IP 192.168.1.105 for user `root`.', timestamp: '2026-02-01T10:00:00Z', resolved: false },
+  { id: 2, type: 'File Monitoring', severity: 'High', title: `Critical File Modified on ${agentName}`, details: '`/etc/passwd` was modified. Check for unauthorized changes.', timestamp: '2026-02-01T09:55:00Z', resolved: false },
   { id: 3, type: 'Process', severity: 'Medium', title: 'Suspicious Process Started', details: 'A new process `nmap` was started by user `www-data`.', timestamp: '2026-02-01T09:50:00Z', resolved: true },
   { id: 4, type: 'Firewall', severity: 'Medium', title: 'Unusual Port Scan', details: 'Firewall blocked incoming connection attempts on multiple ports from 10.0.2.15.', timestamp: '2026-02-01T09:45:00Z', resolved: false },
   { id: 5, type: 'Login', severity: 'Low', title: 'Successful Admin Login', details: 'User `admin` logged in successfully from a known IP.', timestamp: '2026-02-01T09:40:00Z', resolved: true },
@@ -43,6 +45,8 @@ const getSeverityStyling = (severity: Severity) => {
 
 // --- MAIN ALERTS PAGE COMPONENT ---
 export default function AlertsPage() {
+  const { selectedAgent } = useAgent();
+  const initialAlerts = selectedAgent ? getInitialAlerts(selectedAgent.name) : [];
   const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [activeFilter, setActiveFilter] = useState('All');
@@ -63,9 +67,12 @@ export default function AlertsPage() {
     <>
       {/* Main Content */}
       
-        <header className="mb-8">
-          <h2 className="text-3xl font-bold text-white">Security Alerts</h2>
-          <p className="text-slate-400">Monitor, manage, and respond to threats in real-time.</p>
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h2 className="text-3xl font-bold text-white">Security Alerts</h2>
+            <p className="text-slate-400">Monitor, manage, and respond to threats in real-time.</p>
+          </div>
+          <AgentSelector />
         </header>
 
         {/* Filter Tabs */}

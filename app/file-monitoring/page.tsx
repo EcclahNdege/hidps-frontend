@@ -1,6 +1,8 @@
 "use client";
 import { useState } from 'react';
 import { FileWarning, Plus, Trash2 } from 'lucide-react';
+import AgentSelector from '@/components/AgentSelector';
+import { useAgent } from '@/lib/agent-context';
 
 // --- MOCK DATA ---
 interface File {
@@ -21,16 +23,18 @@ const initialMonitoredFiles: File[] = [
   { id: 3, path: '/var/log/auth.log', added: '2026-01-20T11:30:00Z' },
 ];
 
-const fileLogs: Log[] = [
-    { id: 1, timestamp: '2026-02-01T09:55:00Z', message: 'ALERT: Integrity check failed for `/etc/passwd`. Hash mismatch.'},
-    { id: 2, timestamp: '2026-02-01T08:00:00Z', message: 'OK: Integrity check passed for `/etc/shadow`.'},
-    { id: 3, timestamp: '2026-02-01T07:55:00Z', message: 'OK: Integrity check passed for `/etc/passwd`.'},
+const getFileLogs = (agentName: string): Log[] => [
+    { id: 1, timestamp: '2026-02-01T09:55:00Z', message: `ALERT: Integrity check failed for '/etc/passwd' on ${agentName}. Hash mismatch.`},
+    { id: 2, timestamp: '2026-02-01T08:00:00Z', message: `OK: Integrity check passed for '/etc/shadow' on ${agentName}.`},
+    { id: 3, timestamp: '2026-02-01T07:55:00Z', message: `OK: Integrity check passed for '/etc/passwd' on ${agentName}.`},
 ];
 
 // --- MAIN FILE MONITORING PAGE COMPONENT ---
 export default function FileMonitoringPage() {
+  const { selectedAgent } = useAgent();
   const [monitoredFiles, setMonitoredFiles] = useState<File[]>(initialMonitoredFiles);
   const [newFilePath, setNewFilePath] = useState('');
+  const fileLogs = selectedAgent ? getFileLogs(selectedAgent.name) : [];
 
   const handleAddFile = (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,20 +49,23 @@ export default function FileMonitoringPage() {
     setMonitoredFiles([newFile, ...monitoredFiles]);
     setNewFilePath('');
     // In a real app, this would trigger a backend API call and generate an alert.
-    console.log(`ALERT: New file '${newFile.path}' added to monitoring.`);
+    console.log(`ALERT on ${selectedAgent?.name}: New file '${newFile.path}' added to monitoring.`);
   };
 
   const handleRemoveFile = (id: number, path: string) => {
     setMonitoredFiles(monitoredFiles.filter(f => f.id !== id));
      // In a real app, this would trigger a backend API call and generate an alert.
-    console.log(`ALERT: File '${path}' removed from monitoring.`);
+    console.log(`ALERT on ${selectedAgent?.name}: File '${path}' removed from monitoring.`);
   };
 
   return (
     <>
-        <header className="mb-8">
-          <h2 className="text-3xl font-bold text-white">File Integrity Monitoring</h2>
-          <p className="text-slate-400">Manage and monitor critical files for unauthorized changes.</p>
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h2 className="text-3xl font-bold text-white">File Integrity Monitoring</h2>
+            <p className="text-slate-400">Manage and monitor critical files for unauthorized changes.</p>
+          </div>
+          <AgentSelector />
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

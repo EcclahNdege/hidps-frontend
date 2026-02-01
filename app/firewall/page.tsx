@@ -1,6 +1,8 @@
 "use client";
 import { useState } from 'react';
 import { Shield, ShieldOff, Plus, Trash2, ChevronDown } from 'lucide-react';
+import AgentSelector from '@/components/AgentSelector';
+import { useAgent } from '@/lib/agent-context';
 
 // --- MOCK DATA & TYPES ---
 type Policy = 'allow' | 'deny' | 'reject';
@@ -21,6 +23,7 @@ const initialRules: Rule[] = [
 
 // --- MAIN FIREWALL PAGE COMPONENT ---
 export default function FirewallPage() {
+  const { selectedAgent } = useAgent();
   const [isFirewallActive, setIsFirewallActive] = useState(true);
   const [defaultIncoming, setDefaultIncoming] = useState<Policy>('deny');
   const [defaultOutgoing, setDefaultOutgoing] = useState<Policy>('allow');
@@ -34,13 +37,13 @@ export default function FirewallPage() {
 
   const handleToggleFirewall = () => {
     setIsFirewallActive(!isFirewallActive);
-    console.log(`ALERT: Firewall has been ${!isFirewallActive ? 'ENABLED' : 'DISABLED'}.`);
+    console.log(`ALERT on ${selectedAgent?.name}: Firewall has been ${!isFirewallActive ? 'ENABLED' : 'DISABLED'}.`);
   };
 
   const handlePolicyChange = (policyType: 'incoming' | 'outgoing', value: Policy) => {
     if (policyType === 'incoming') setDefaultIncoming(value);
     else setDefaultOutgoing(value);
-    console.log(`ALERT: Default ${policyType} policy changed to ${value}.`);
+    console.log(`ALERT on ${selectedAgent?.name}: Default ${policyType} policy changed to ${value}.`);
   };
 
   const handleAddRule = (e: React.FormEvent) => {
@@ -54,7 +57,7 @@ export default function FirewallPage() {
       from: newRuleFrom || 'any',
     };
     setRules([newRule, ...rules]);
-    console.log(`ALERT: New firewall rule added: ${newRule.action.toUpperCase()} ${newRule.port}/${newRule.protocol} from ${newRule.from}`);
+    console.log(`ALERT on ${selectedAgent?.name}: New firewall rule added: ${newRule.action.toUpperCase()} ${newRule.port}/${newRule.protocol} from ${newRule.from}`);
     // Reset form
     setNewRulePort('');
     setNewRuleFrom('any');
@@ -64,7 +67,7 @@ export default function FirewallPage() {
     const ruleToRemove = rules.find(r => r.id === id);
     setRules(rules.filter(r => r.id !== id));
     if(ruleToRemove) {
-        console.log(`ALERT: Firewall rule removed: ${ruleToRemove.action.toUpperCase()} ${ruleToRemove.port}/${ruleToRemove.protocol} from ${ruleToRemove.from}`);
+        console.log(`ALERT on ${selectedAgent?.name}: Firewall rule removed: ${ruleToRemove.action.toUpperCase()} ${ruleToRemove.port}/${ruleToRemove.protocol} from ${ruleToRemove.from}`);
     }
   };
 
@@ -85,9 +88,12 @@ export default function FirewallPage() {
 
   return (
     <>
-      <header className="mb-8">
-        <h2 className="text-3xl font-bold text-white">Firewall Management</h2>
-        <p className="text-slate-400">Configure and manage UFW (Uncomplicated Firewall) policies and rules.</p>
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-white">Firewall Management</h2>
+          <p className="text-slate-400">Configure and manage UFW (Uncomplicated Firewall) policies and rules.</p>
+        </div>
+        <AgentSelector />
       </header>
 
       <div className="space-y-8">
