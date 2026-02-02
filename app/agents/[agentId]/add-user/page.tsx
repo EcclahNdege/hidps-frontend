@@ -39,7 +39,7 @@ export default function AddUserToAgentPage() {
       // First, check if this is a real approach - we need to call an edge function or RPC
       // For now, let's create an RPC function approach
       
-      const { data: userData, error: userError } = await supabase.rpc(
+      const { data: userData, error: userError } = await (supabase.rpc as any)(
         'get_user_id_by_email',
         { user_email: email }
       );

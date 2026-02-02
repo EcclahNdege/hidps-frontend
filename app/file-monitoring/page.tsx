@@ -62,7 +62,7 @@ export default function FileMonitoringPage() {
         (payload: RealtimePostgresChangesPayload<MonitoredFile>) => {
           console.log('File deleted:', payload.old);
           setMonitoredFiles((current : any) => 
-            current.filter((f : any) => f.id !== payload.old.id)
+            current.filter((f : any) => f.id !== (payload.old as any).id)
           );
         }
       )
@@ -77,7 +77,7 @@ export default function FileMonitoringPage() {
         (payload: RealtimePostgresChangesPayload<MonitoredFile>) => {
           console.log('File updated:', payload.new);
           setMonitoredFiles((current : any) =>
-            current.map((f : any) => (f.id === payload.new.id ? payload.new : f))
+            current.map((f : any) => (f.id === (payload.new as any).id ? payload.new : f))
           );
         }
       )
