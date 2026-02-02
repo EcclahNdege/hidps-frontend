@@ -40,7 +40,7 @@ export default function InstallAgentPage() {
     };
   }, [agentId, supabase, router]);
 
-  const agentDownloadLink = "/downloads/sentinel-agent.tar.gz";
+  const agentDownloadLink = "/hidps-agent.tar.gz";
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col items-center justify-center p-4">
@@ -86,10 +86,10 @@ export default function InstallAgentPage() {
                 </p>
                 <div className="bg-slate-950 p-4 rounded-lg text-sm font-mono border border-slate-700">
                   <p className="text-gray-500"># Unpack the agent</p>
-                  <p className="text-slate-300">$ tar -xvzf sentinel-agent.tar.gz</p>
+                  <p className="text-slate-300">$ tar -xvzf hidps-agent.tar.gz</p>
                   <br />
                   <p className="text-gray-500"># Navigate into the directory</p>
-                  <p className="text-slate-300">$ cd sentinel-agent</p>
+                  <p className="text-slate-300">$ cd hidps-agent</p>
                   <br />
                   <p className="text-gray-500"># Run the installer with your agent ID</p>
                   <p className="text-slate-300">$ sudo ./install.sh --agent-id {agentId}</p>
