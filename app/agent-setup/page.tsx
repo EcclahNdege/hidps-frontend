@@ -1,73 +1,115 @@
 "use client";
-import { CheckCircle, Download, Terminal, ShieldCheck } from 'lucide-react';
-import Link from 'next/link';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Plus, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 export default function AgentSetupPage() {
-  const agentDownloadLink = "/downloads/sentinel-agent.tar.gz"; // Placeholder link
+  const router = useRouter();
+  const supabase = createClient();
+  const [agentName, setAgentName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!agentName.trim()) {
+      setError('Agent name is required.');
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError('You must be logged in to add an agent.');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // 1. Insert into agents table
+      const { data: agentData, error: agentError } = await supabase
+        .from('agents')
+        .insert({
+          name: agentName,
+          owner_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (agentError) throw agentError;
+
+      // 2. Insert into agent_stats table
+      const { error: statsError } = await supabase
+        .from('agent_stats')
+        .insert({
+          agent_id: agentData.id,
+        });
+
+      if (statsError) throw statsError;
+
+      router.push('/agents');
+
+    } catch (err: any) {
+      console.error('Error adding agent:', err);
+      setError(err.message || 'An unexpected error occurred.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <CheckCircle className="mx-auto text-emerald-500 w-16 h-16 mb-4" />
-          <h1 className="text-4xl md:text-5xl font-extrabold text-white">Account Created!</h1>
-          <p className="text-lg text-slate-400 mt-2">Your next step is to install the Sentinel Agent on your host machine.</p>
-        </div>
+    <div>
+      <header className="mb-8">
+        <h2 className="text-3xl font-bold text-white">Add New Agent</h2>
+        <p className="text-slate-400">Create a new agent to monitor a host.</p>
+      </header>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-8">
+      <div className="max-w-md bg-slate-900 p-8 rounded-xl border border-slate-800">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <h2 className="text-2xl font-bold flex items-center mb-4">
-              <Download className="mr-3 text-blue-500" />
-              1. Download the Agent
-            </h2>
-            <p className="text-slate-400 mb-4">
-              Download the agent package for your Linux distribution.
-            </p>
-            <a 
-              href={agentDownloadLink} 
-              download
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-all transform hover:scale-105"
+            <label htmlFor="agentName" className="block text-sm font-medium text-slate-300 mb-2">
+              Agent Name
+            </label>
+            <input
+              id="agentName"
+              name="agentName"
+              type="text"
+              required
+              value={agentName}
+              onChange={(e) => setAgentName(e.target.value)}
+              disabled={isLoading}
+              className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              placeholder="e.g., Production Web Server"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-400">{error}</p>
+          )}
+
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full flex justify-center items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg disabled:opacity-50"
             >
-              <Download size={20} />
-              Download Agent (Linux x64)
-            </a>
+              {isLoading ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  Adding Agent...
+                </>
+              ) : (
+                <>
+                  <Plus size={20} />
+                  Add Agent
+                </>
+              )}
+            </button>
           </div>
-
-          <div>
-            <h2 className="text-2xl font-bold flex items-center mb-4">
-              <Terminal className="mr-3 text-green-500" />
-              2. Install & Run
-            </h2>
-            <p className="text-slate-400 mb-4">
-              Extract the package and run the installation script. You will need root privileges.
-            </p>
-            <div className="bg-slate-950 p-4 rounded-lg text-sm font-mono border border-slate-700">
-              <p className="text-gray-500"># Unpack the agent</p>
-              <p className="text-slate-300">$ tar -xvzf sentinel-agent.tar.gz</p>
-              <br/>
-              <p className="text-gray-500"># Navigate into the directory</p>
-              <p className="text-slate-300">$ cd sentinel-agent</p>
-              <br/>
-              <p className="text-gray-500"># Run the installer with sudo</p>
-              <p className="text-slate-300">$ sudo ./install.sh</p>
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-2xl font-bold flex items-center mb-4">
-              <ShieldCheck className="mr-3 text-emerald-500" />
-              3. Confirm Installation
-            </h2>
-            <p className="text-slate-400 mb-4">
-              After the script runs, the agent will automatically open a new tab in your browser to confirm a successful connection. 
-              Once confirmed, you will be redirected to your dashboard.
-            </p>
-          </div>
-          
-          <div className="text-center pt-6">
-            <p className="text-slate-500">Finished? <Link href="/dashboard" className="text-blue-500 hover:underline">Go to Dashboard &rarr;</Link></p>
-          </div>
-        </div>
+        </form>
       </div>
     </div>
   );

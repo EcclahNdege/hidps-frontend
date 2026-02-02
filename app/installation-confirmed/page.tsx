@@ -10,7 +10,7 @@ export default function InstallationConfirmedPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      router.push('/dashboard');
+      router.push('/agents');
     }, 5000); // 5-second delay before redirecting
 
     return () => clearTimeout(timer); // Cleanup timer on unmount
@@ -23,7 +23,7 @@ export default function InstallationConfirmedPage() {
         Agent Successfully Connected!
       </h1>
       <p className="text-lg text-slate-400 mb-8 max-w-lg">
-        Your host is now being monitored by Sentinel HIDS. You are being redirected to your dashboard.
+        Your host is now being monitored by Sentinel HIDS. You are being redirected to your agents page.
       </p>
       <div className="flex items-center justify-center text-slate-500">
         <Loader className="animate-spin mr-3" />
@@ -31,7 +31,7 @@ export default function InstallationConfirmedPage() {
       </div>
       <p className="text-slate-600 mt-12">
         If you are not redirected automatically,{' '}
-        <Link href="/dashboard" className="text-blue-500 hover:underline">
+        <Link href="/agents" className="text-blue-500 hover:underline">
           click here
         </Link>.
       </p>

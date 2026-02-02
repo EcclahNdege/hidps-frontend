@@ -1,8 +1,12 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Shield, ShieldOff, Plus, Trash2, ChevronDown } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
+import { createClient } from '@/lib/supabase/client';
+import { Database } from '@/lib/supabase/database.types';
+
+type AgentStats = Database['public']['Tables']['agent_stats']['Row'];
 
 // --- MOCK DATA & TYPES ---
 type Policy = 'allow' | 'deny' | 'reject';
@@ -24,10 +28,11 @@ const initialRules: Rule[] = [
 // --- MAIN FIREWALL PAGE COMPONENT ---
 export default function FirewallPage() {
   const { selectedAgent } = useAgent();
-  const [isFirewallActive, setIsFirewallActive] = useState(true);
+  const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
   const [defaultIncoming, setDefaultIncoming] = useState<Policy>('deny');
   const [defaultOutgoing, setDefaultOutgoing] = useState<Policy>('allow');
   const [rules, setRules] = useState<Rule[]>(initialRules);
+  const supabase = createClient();
   
   // State for the new rule form
   const [newRuleAction, setNewRuleAction] = useState<'allow' | 'deny'>('allow');
@@ -35,9 +40,57 @@ export default function FirewallPage() {
   const [newRuleProtocol, setNewRuleProtocol] = useState<'tcp' | 'udp'>('tcp');
   const [newRuleFrom, setNewRuleFrom] = useState('any');
 
-  const handleToggleFirewall = () => {
-    setIsFirewallActive(!isFirewallActive);
-    console.log(`ALERT on ${selectedAgent?.name}: Firewall has been ${!isFirewallActive ? 'ENABLED' : 'DISABLED'}.`);
+  useEffect(() => {
+    if (!selectedAgent) return;
+
+    const fetchAgentStats = async () => {
+      const { data, error } = await supabase
+        .from('agent_stats')
+        .select('*')
+        .eq('agent_id', selectedAgent.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching agent stats:', error);
+      } else {
+        setAgentStats(data);
+      }
+    };
+
+    fetchAgentStats();
+
+    const channel = supabase
+      .channel(`agent_stats:agent_id=eq.${selectedAgent.id}`)
+      .on<AgentStats>(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agent_stats',
+          filter: `agent_id=eq.${selectedAgent.id}`,
+        },
+        (payload) => {
+          setAgentStats(payload.new as AgentStats);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedAgent, supabase]);
+
+  const firewallEnabled = agentStats?.firewall_enabled || false;
+
+  const handleToggleFirewall = async () => {
+    if (!selectedAgent) return;
+    const { error } = await supabase
+      .from('agent_stats')
+      .update({ firewall_enabled: !firewallEnabled })
+      .eq('agent_id', selectedAgent.id);
+    if (error) {
+      console.error('Error toggling firewall:', error);
+    }
   };
 
   const handlePolicyChange = (policyType: 'incoming' | 'outgoing', value: Policy) => {
@@ -104,13 +157,13 @@ export default function FirewallPage() {
                 <button 
                     onClick={handleToggleFirewall}
                     className={`w-full flex items-center justify-center gap-3 py-3 rounded-lg font-semibold transition-colors ${
-                        isFirewallActive
+                        firewallEnabled
                             ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
                             : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
                     }`}
                 >
-                    {isFirewallActive ? <Shield size={20} /> : <ShieldOff size={20} />}
-                    {isFirewallActive ? 'Active' : 'Inactive'}
+                    {firewallEnabled ? <Shield size={20} /> : <ShieldOff size={20} />}
+                    {firewallEnabled ? 'Active' : 'Inactive'}
                 </button>
             </div>
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">

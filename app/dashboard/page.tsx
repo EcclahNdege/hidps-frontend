@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/lib/supabase/database.types';
 
 type Alert = Database['public']['Tables']['alerts']['Row'];
+type AgentStats = Database['public']['Tables']['agent_stats']['Row'];
 
 // --- HELPER COMPONENTS ---
 const ResourceUsage = ({ icon: Icon, title, value, color }: { icon: React.ElementType, title: string, value: number, color: string }) => (
@@ -38,20 +39,50 @@ const StatusIndicator = ({ label, isOnline }: { label: string, isOnline: boolean
 
 // --- MAIN DASHBOARD COMPONENT ---
 export default function DashboardPage() {
-  const [cpu, setCpu] = useState(35);
-  const [ram, setRam] = useState(60);
-  const [storage, setStorage] = useState(82);
   const { selectedAgent } = useAgent();
   const [recentAlerts, setRecentAlerts] = useState<Alert[]>([]);
+  const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCpu(prev => Math.max(10, Math.min(90, prev + (Math.random() - 0.5) * 5)));
-      setRam(prev => Math.max(40, Math.min(80, prev + (Math.random() - 0.5) * 2)));
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    if (!selectedAgent) return;
+
+    const fetchAgentStats = async () => {
+      const { data, error } = await supabase
+        .from('agent_stats')
+        .select('*')
+        .eq('agent_id', selectedAgent.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching agent stats:', error);
+      } else {
+        setAgentStats(data);
+      }
+    };
+
+    fetchAgentStats();
+
+    const channel = supabase
+      .channel(`agent_stats:agent_id=eq.${selectedAgent.id}`)
+      .on<AgentStats>(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agent_stats',
+          filter: `agent_id=eq.${selectedAgent.id}`,
+        },
+        (payload) => {
+          setAgentStats(payload.new as AgentStats);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedAgent, supabase]);
 
   useEffect(() => {
     if (!selectedAgent) return;
@@ -73,6 +104,11 @@ export default function DashboardPage() {
 
     fetchAlerts();
   }, [selectedAgent, supabase]);
+
+  const cpu = agentStats?.cpu_usage ? Number(agentStats.cpu_usage) : 0;
+  const ram = agentStats?.ram_usage ? Number(agentStats.ram_usage) : 0;
+  const storage = agentStats?.storage_usage ? Number(agentStats.storage_usage) : 0;
+  const firewallEnabled = agentStats?.firewall_enabled || false;
 
   return (
     <>
@@ -96,7 +132,9 @@ export default function DashboardPage() {
                     <Shield size={20} className="text-slate-400"/>
                     <span className="font-medium text-slate-400">Firewall</span>
                 </div>
-                <span className="font-bold text-green-400 bg-green-500/10 px-3 py-1 rounded-full">Enabled</span>
+                <span className={`font-bold px-3 py-1 rounded-full ${firewallEnabled ? 'text-green-400 bg-green-500/10' : 'text-red-https://h-400 bg-red-500/10'}`}>
+                  {firewallEnabled ? 'Enabled' : 'Disabled'}
+                </span>
             </div>
         </div>
 
