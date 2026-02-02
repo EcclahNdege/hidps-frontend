@@ -1,37 +1,23 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Shield, ShieldOff, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Shield, ShieldOff, Plus, Trash2, ChevronDown, Wifi, WifiOff } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
 import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/lib/supabase/database.types';
+import { useWebSocket } from '@/lib/websocket-context';
 
 type AgentStats = Database['public']['Tables']['agent_stats']['Row'];
 
-// --- MOCK DATA & TYPES ---
 type Policy = 'allow' | 'deny' | 'reject';
-interface Rule {
-  id: number;
-  action: 'allow' | 'deny';
-  port: string;
-  protocol: 'tcp' | 'udp' | 'any';
-  from: string;
-}
-
-const initialRules: Rule[] = [
-  { id: 1, action: 'allow', port: '22', protocol: 'tcp', from: 'any' },
-  { id: 2, action: 'allow', port: '80', protocol: 'tcp', from: 'any' },
-  { id: 3, action: 'allow', port: '443', protocol: 'tcp', from: 'any' },
-  { id: 4, action: 'deny', port: '3306', protocol: 'tcp', from: '10.0.0.0/8' },
-];
 
 // --- MAIN FIREWALL PAGE COMPONENT ---
 export default function FirewallPage() {
   const { selectedAgent } = useAgent();
+  const { firewallRules, isConnected } = useWebSocket();
   const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
   const [defaultIncoming, setDefaultIncoming] = useState<Policy>('deny');
   const [defaultOutgoing, setDefaultOutgoing] = useState<Policy>('allow');
-  const [rules, setRules] = useState<Rule[]>(initialRules);
   const supabase = createClient();
   
   // State for the new rule form
@@ -39,6 +25,8 @@ export default function FirewallPage() {
   const [newRulePort, setNewRulePort] = useState('');
   const [newRuleProtocol, setNewRuleProtocol] = useState<'tcp' | 'udp'>('tcp');
   const [newRuleFrom, setNewRuleFrom] = useState('any');
+  
+  const rules = firewallRules; // Use rules from WebSocket
 
   useEffect(() => {
     if (!selectedAgent) return;
@@ -84,6 +72,8 @@ export default function FirewallPage() {
 
   const handleToggleFirewall = async () => {
     if (!selectedAgent) return;
+    // This functionality likely requires sending a command to the agent via the backend.
+    // For now, we'll just update the optimistic UI state.
     const { error } = await supabase
       .from('agent_stats')
       .update({ firewall_enabled: !firewallEnabled })
@@ -96,32 +86,19 @@ export default function FirewallPage() {
   const handlePolicyChange = (policyType: 'incoming' | 'outgoing', value: Policy) => {
     if (policyType === 'incoming') setDefaultIncoming(value);
     else setDefaultOutgoing(value);
+    // This should send a command to the agent.
     console.log(`ALERT on ${selectedAgent?.name}: Default ${policyType} policy changed to ${value}.`);
   };
 
   const handleAddRule = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRulePort) return;
-    const newRule: Rule = {
-      id: Date.now(),
-      action: newRuleAction,
-      port: newRulePort,
-      protocol: newRuleProtocol,
-      from: newRuleFrom || 'any',
-    };
-    setRules([newRule, ...rules]);
-    console.log(`ALERT on ${selectedAgent?.name}: New firewall rule added: ${newRule.action.toUpperCase()} ${newRule.port}/${newRule.protocol} from ${newRule.from}`);
-    // Reset form
-    setNewRulePort('');
-    setNewRuleFrom('any');
+    // This should send a command to the agent.
+    alert("Adding/modifying firewall rules is not yet supported in this UI.");
   };
 
   const handleRemoveRule = (id: number) => {
-    const ruleToRemove = rules.find(r => r.id === id);
-    setRules(rules.filter(r => r.id !== id));
-    if(ruleToRemove) {
-        console.log(`ALERT on ${selectedAgent?.name}: Firewall rule removed: ${ruleToRemove.action.toUpperCase()} ${ruleToRemove.port}/${ruleToRemove.protocol} from ${ruleToRemove.from}`);
-    }
+    // This should send a command to the agent.
+    alert("Adding/modifying firewall rules is not yet supported in this UI.");
   };
 
   const PolicyDropdown = ({ value, onChange }: { value: Policy, onChange: (v: Policy) => void }) => (
@@ -144,7 +121,20 @@ export default function FirewallPage() {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h2 className="text-3xl font-bold text-white">Firewall Management</h2>
-          <p className="text-slate-400">Configure and manage UFW (Uncomplicated Firewall) policies and rules.</p>
+          <div className="flex items-center gap-2">
+            <p className="text-slate-400">Configure and manage UFW (Uncomplicated Firewall) policies and rules.</p>
+            {isConnected ? (
+              <span className="flex items-center gap-1 text-xs text-green-400 bg-green-900/50 rounded-full px-2 py-0.5">
+                <Wifi size={12} />
+                Connected
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs text-red-400 bg-red-900/50 rounded-full px-2 py-0.5">
+                <WifiOff size={12} />
+                Disconnected
+              </span>
+            )}
+          </div>
         </div>
         <AgentSelector />
       </header>
@@ -233,6 +223,7 @@ export default function FirewallPage() {
                     ))}
                 </tbody>
             </table>
+             {rules.length === 0 && <p className="p-4 text-slate-500">No firewall rules loaded. Waiting for connection...</p>}
         </div>
       </div>
     </>
