@@ -166,6 +166,43 @@ export type Database = {
           }
         ]
       }
+      agent_stats: {
+        Row: {
+          created_at: string
+          agent_id: string
+          is_installed: boolean
+          cpu_usage: number
+          ram_usage: number
+          storage_usage: number
+          firewall_enabled: boolean
+        }
+        Insert: {
+          created_at?: string
+          agent_id: string
+          is_installed?: boolean
+          cpu_usage?: number
+          ram_usage?: number
+          storage_usage?: number
+          firewall_enabled?: boolean
+        }
+        Update: {
+          created_at?: string
+          agent_id?: string
+          is_installed?: boolean
+          cpu_usage?: number
+          ram_usage?: number
+          storage_usage?: number
+          firewall_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_stats_agent_id_fkey"
+            columns: ["agent_id"]
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
