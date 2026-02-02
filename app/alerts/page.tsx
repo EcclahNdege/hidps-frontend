@@ -59,6 +59,7 @@ export default function AlertsPage() {
       if (error) {
         console.error('Error fetching alerts:', error);
       } else {
+        console.log('Fetched alerts:', data);
         setAlerts(data);
       }
     };

@@ -1,5 +1,4 @@
 "use client";
-
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { createClient } from './supabase/client';
 import { Database } from './supabase/database.types';
@@ -10,6 +9,7 @@ interface AgentContextType {
   selectedAgent: Agent | null;
   setSelectedAgent: (agent: Agent | null) => void;
   agents: Agent[];
+  refreshAgents: () => Promise<void>;
 }
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined);
@@ -19,28 +19,54 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [agents, setAgents] = useState<Agent[]>([]);
   const supabase = createClient();
 
-  useEffect(() => {
-    const fetchAgents = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        return;
-      }
-      const { data, error } = await supabase.from('agents').select('*');
-      if (error) {
-        console.error('Error fetching agents:', error);
-      } else if (data) {
-        setAgents(data);
-        if (data.length > 0) {
-          setSelectedAgent(data[0]);
-        }
-      }
-    };
+  const fetchAgents = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setAgents([]);
+      setSelectedAgent(null);
+      return;
+    }
 
+    const { data, error } = await supabase.from('agents').select('*');
+    
+    if (error) {
+      console.error('Error fetching agents:', error);
+      setAgents([]);
+    } else if (data) {
+      setAgents(data);
+      // Only set selected agent if there isn't one already or if current one is no longer in the list
+      if (!selectedAgent || !data.find(a => a.id === selectedAgent.id)) {
+        setSelectedAgent(data.length > 0 ? data[0] : null);
+      }
+    }
+  };
+
+  useEffect(() => {
     fetchAgents();
-  }, [supabase]);
+    
+    // Optional: Set up real-time subscription to agents table
+    const channel = supabase
+      .channel('agents_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agents'
+        },
+        () => {
+          fetchAgents();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   return (
-    <AgentContext.Provider value={{ selectedAgent, setSelectedAgent, agents }}>
+    <AgentContext.Provider value={{ selectedAgent, setSelectedAgent, agents, refreshAgents: fetchAgents }}>
       {children}
     </AgentContext.Provider>
   );
