@@ -5,6 +5,7 @@ import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
 import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/lib/supabase/database.types';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 type Alert = Database['public']['Tables']['alerts']['Row'];
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low';
@@ -65,30 +66,96 @@ export default function AlertsPage() {
     };
 
     fetchAlerts();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel(`alerts:agent_id=eq.${selectedAgent.id}`)
+      .on<Alert>(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'alerts',
+          filter: `agent_id=eq.${selectedAgent.id}`,
+        },
+        (payload: RealtimePostgresChangesPayload<Alert> | any) => {
+          console.log('New alert inserted:', payload.new);
+          // Only add if it matches the current filter or filter is 'All'
+          if (activeFilter === 'All' || payload.new.alert_type === activeFilter) {
+            setAlerts((current) => [payload.new, ...current]);
+          }
+        }
+      )
+      .on<Alert>(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'alerts',
+          filter: `agent_id=eq.${selectedAgent.id}`,
+        },
+        (payload: RealtimePostgresChangesPayload<Alert> | any) => {
+          console.log('Alert updated:', payload.new);
+          setAlerts((current) =>
+            current.map((alert) => (alert.id === payload.new.id ? payload.new : alert))
+          );
+          // Update selected alert if it's the one being viewed
+          if (selectedAlert?.id === payload.new.id) {
+            setSelectedAlert(payload.new);
+          }
+        }
+      )
+      .on<Alert>(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'alerts',
+          filter: `agent_id=eq.${selectedAgent.id}`,
+        },
+        (payload: RealtimePostgresChangesPayload<Alert> | any) => {
+          console.log('Alert deleted:', payload.old);
+          setAlerts((current) => current.filter((alert) => alert.id !== payload.old.id));
+          // Close modal if the deleted alert is being viewed
+          if (selectedAlert?.id === payload.old.id) {
+            setSelectedAlert(null);
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount or when selectedAgent/activeFilter changes
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedAgent, activeFilter, supabase]);
 
   const handleResolve = async (id: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
     
-    const { error } = await supabase.from('alerts').update({ resolved: true, resolved_by: session.user.id, resolved_at: new Date().toISOString() }).eq('id', id);
+    const { error } = await supabase
+      .from('alerts')
+      .update({ 
+        resolved: true, 
+        resolved_by: session.user.id, 
+        resolved_at: new Date().toISOString() 
+      })
+      .eq('id', id);
+    
     if (error) {
       console.error('Error resolving alert:', error);
-    } else {
-      setAlerts(alerts.map(a => a.id === id ? { ...a, resolved: true } : a));
-      if (selectedAlert?.id === id) setSelectedAlert(null);
     }
+    // No need to update state here - real-time subscription will handle it
   };
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from('alerts').delete().eq('id', id);
+    
     if (error) {
-        console.error('Error deleting alert:', error);
+      console.error('Error deleting alert:', error);
     }
-    else {
-        setAlerts(alerts.filter(a => a.id !== id));
-        if (selectedAlert?.id === id) setSelectedAlert(null);
-    }
+    // No need to update state here - real-time subscription will handle it
   };
 
   const filteredAlerts = alerts;
