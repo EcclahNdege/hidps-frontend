@@ -7,10 +7,10 @@ import { useWebSocket } from '@/lib/websocket-context';
 
 const logTypes = [
     { name: 'All', icon: BookText },
-    { name: 'Firewall', icon: Shield },
-    { name: 'Login', icon: Users },
-    { name: 'File Monitoring', icon: FileWarning },
-    { name: 'Process', icon: Bell },
+    { name: 'firewall', icon: Shield },
+    { name: 'login', icon: Users },
+    { name: 'file_monitoring', icon: FileWarning },
+    { name: 'process', icon: Bell },
 ];
 
 // --- MAIN LOGS PAGE COMPONENT ---
