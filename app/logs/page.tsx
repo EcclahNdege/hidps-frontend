@@ -25,7 +25,7 @@ export default function LogsPage() {
 
   const filteredLogs = activeFilter === 'All' 
     ? agentLogs 
-    : agentLogs.filter(l => l.log?.type === activeFilter);
+    : agentLogs.filter(l => l.type === activeFilter);
 
   return (
     <>
