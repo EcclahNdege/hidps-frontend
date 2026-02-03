@@ -14,6 +14,7 @@ interface WebSocketContextType {
   logs: any[];
   firewallRules: any[];
   isConnected: boolean;
+  sendCommand: (agentId: string, command: string, payload: any) => void; // New helper
 }
 
 // Create the context with a default value
@@ -27,6 +28,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [firewallRules, setFirewallRules] = useState<any[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [socket, setSocket] = useState<WebSocket | null>(null); // Store socket instance
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -56,6 +58,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const wsUrl = `${protocol}//${host}/?user_id=${userId}`;
 
     const ws = new WebSocket(wsUrl);
+    setSocket(ws); // Save the socket instance
 
     ws.onopen = () => {
       console.log("WebSocket connected");
@@ -66,6 +69,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       try {
         const message = JSON.parse(event.data);
         console.log("WebSocket message received:", message);
+
+        if (message.type === "firewall_sync" || message.type === "firewall_rules_updated") {
+          setFirewallRules(message.rules);
+        }
 
         if (message.type === "log_stream") {
           setLogs((prevLogs) => [message.log, ...prevLogs]);
@@ -95,10 +102,21 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
   }, [userId]);
 
+  const sendCommand = (agentId: string, command: string, payload: any) => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: "frontend_command",
+        agent_id: agentId,
+        command,
+        payload
+      }));
+    }
+  };
   const value = {
     logs,
     firewallRules,
     isConnected,
+    sendCommand
   };
 
   return (

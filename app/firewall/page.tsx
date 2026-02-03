@@ -14,7 +14,7 @@ type Policy = 'allow' | 'deny' | 'reject';
 // --- MAIN FIREWALL PAGE COMPONENT ---
 export default function FirewallPage() {
   const { selectedAgent } = useAgent();
-  const { firewallRules, isConnected } = useWebSocket();
+  const { firewallRules, isConnected, sendCommand } = useWebSocket();
   const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
   const [defaultIncoming, setDefaultIncoming] = useState<Policy>('deny');
   const [defaultOutgoing, setDefaultOutgoing] = useState<Policy>('allow');
@@ -74,13 +74,16 @@ export default function FirewallPage() {
     if (!selectedAgent) return;
     // This functionality likely requires sending a command to the agent via the backend.
     // For now, we'll just update the optimistic UI state.
-    const { error } = await supabase
-      .from('agent_stats')
-      .update({ firewall_enabled: !firewallEnabled })
-      .eq('agent_id', selectedAgent.id);
-    if (error) {
-      console.error('Error toggling firewall:', error);
-    }
+    // const { error } = await supabase
+    //   .from('agent_stats')
+    //   .update({ firewall_enabled: !firewallEnabled })
+    //   .eq('agent_id', selectedAgent.id);
+    // if (error) {
+    //   console.error('Error toggling firewall:', error);
+    // }
+    sendCommand(selectedAgent.id, "toggle_firewall", { 
+      enabled: !firewallEnabled 
+    });
   };
 
   const handlePolicyChange = (policyType: 'incoming' | 'outgoing', value: Policy) => {
@@ -92,13 +95,26 @@ export default function FirewallPage() {
 
   const handleAddRule = (e: React.FormEvent) => {
     e.preventDefault();
-    // This should send a command to the agent.
-    alert("Adding/modifying firewall rules is not yet supported in this UI.");
+    if (!selectedAgent || !newRulePort) return;
+
+    // Format for UFW command (e.g., "80/tcp")
+    const ruleString = `${newRulePort}/${newRuleProtocol}`;
+    
+    sendCommand(selectedAgent.id, "add_firewall_rule", {
+      rule: ruleString,
+      action: newRuleAction
+    });
+
+    setNewRulePort(''); // Clear input
   };
 
-  const handleRemoveRule = (id: number) => {
-    // This should send a command to the agent.
-    alert("Adding/modifying firewall rules is not yet supported in this UI.");
+  const handleRemoveRule = (index: string) => {
+    if (!selectedAgent) return;
+    
+    // Send the rule number (index) to delete
+    sendCommand(selectedAgent.id, "delete_firewall_rule", {
+      index: index
+    });
   };
 
   const PolicyDropdown = ({ value, onChange }: { value: Policy, onChange: (v: Policy) => void }) => (
@@ -212,12 +228,15 @@ export default function FirewallPage() {
                 <tbody>
                     {rules.map(rule => (
                         <tr key={rule.id} className="border-b border-slate-800 hover:bg-slate-800/50">
-                            <td className={`p-4 font-semibold ${rule.action === 'allow' ? 'text-green-400' : 'text-red-400'}`}>{rule.action.toUpperCase()}</td>
-                            <td className="p-4 font-mono">{rule.port}</td>
-                            <td className="p-4 font-mono">{rule.protocol.toUpperCase()}</td>
-                            <td className="p-4 font-mono">{rule.from}</td>
+                            <td className={`p-4 font-semibold ${rule.action.toLowerCase() === 'allow' ? 'text-green-400' : 'text-red-400'}`}>
+                              {rule.action.toUpperCase()}
+                            </td>
+                            <td className="p-4 font-mono">{rule.to}</td> {/* UFW parsed 'to' */}
+                            <td className="p-4 font-mono">{rule.from}</td> {/* UFW parsed 'from' */}
                             <td className="p-4 text-right">
-                                <button onClick={() => handleRemoveRule(rule.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-full"><Trash2 size={16}/></button>
+                              <button onClick={() => handleRemoveRule(rule.id)} className="...">
+                                <Trash2 size={16}/>
+                              </button>
                             </td>
                         </tr>
                     ))}
