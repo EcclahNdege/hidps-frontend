@@ -11,7 +11,7 @@ export default function InstallationConfirmedPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       router.push('/agents');
-    }, 5000); // 5-second delay before redirecting
+    }, 3000); // 3-second delay before redirecting
 
     return () => clearTimeout(timer); // Cleanup timer on unmount
   }, [router]);
