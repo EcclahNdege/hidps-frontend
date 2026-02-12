@@ -16,8 +16,6 @@ export default function FirewallPage() {
   const { selectedAgent } = useAgent();
   const { firewallRules, isConnected, sendCommand } = useWebSocket();
   const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
-  const [defaultIncoming, setDefaultIncoming] = useState<Policy>('deny');
-  const [defaultOutgoing, setDefaultOutgoing] = useState<Policy>('allow');
   const supabase = createClient();
   
   // State for the new rule form
@@ -68,7 +66,7 @@ export default function FirewallPage() {
     };
   }, [selectedAgent, supabase]);
 
-  const firewallEnabled = agentStats?.firewall_enabled || false;
+  const firewallEnabled = selectedAgent?.firewall_enabled || false;
 
   const handleToggleFirewall = async () => {
     if (!selectedAgent) return;
@@ -93,7 +91,7 @@ export default function FirewallPage() {
     console.log(`ALERT on ${selectedAgent?.name}: Default ${policyType} policy changed to ${value}.`);
   };
 
-  const handleAddRule = (e: React.FormEvent) => {
+  const handleAddRule = (e: React.SubmitEvent) => {
     e.preventDefault();
     if (!selectedAgent || !newRulePort) return;
 
@@ -172,14 +170,20 @@ export default function FirewallPage() {
                     {firewallEnabled ? 'Active' : 'Inactive'}
                 </button>
             </div>
-            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+            {/* <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
                  <h3 className="text-lg font-semibold text-white mb-4">Default Incoming</h3>
                  <PolicyDropdown value={defaultIncoming} onChange={(v) => handlePolicyChange('incoming', v)} />
             </div>
             <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
                  <h3 className="text-lg font-semibold text-white mb-4">Default Outgoing</h3>
                  <PolicyDropdown value={defaultOutgoing} onChange={(v) => handlePolicyChange('outgoing', v)} />
+            </div> */}
+            {/* This firewall is always in "default deny incoming, default allow outgoing" mode. Explain that to the user */}
+            <div className="bg-slate-900 p-2 rounded-xl border border-slate-800">
+                  <h3 className="text-lg font-semibold text-white mb-4">Default Policies</h3>
+                  <p className="text-slate-400">This firewall operates in a default deny incoming, default allow outgoing mode.</p>
             </div>
+
         </div>
 
         {/* Firewall Rules */}

@@ -35,7 +35,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     } else if (data) {
       setAgents(data);
       // Only set selected agent if there isn't one already or if current one is no longer in the list
-      if (!selectedAgent || !data.find(a => a.id === selectedAgent.id)) {
+      if (!selectedAgent && data.length > 0) {
         setSelectedAgent(data.length > 0 ? data[0] : null);
       }
     }
