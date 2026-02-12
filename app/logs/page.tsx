@@ -18,6 +18,9 @@ export default function LogsPage() {
   const { selectedAgent } = useAgent();
   const { logs, isConnected } = useWebSocket();
   const [activeFilter, setActiveFilter] = useState('All');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const logsPerPage = 5;
 
   const agentLogs = selectedAgent 
     ? logs.filter(log => log.agent_id === selectedAgent.id)
@@ -26,6 +29,13 @@ export default function LogsPage() {
   const filteredLogs = activeFilter === 'All' 
     ? agentLogs 
     : agentLogs.filter(l => l.type === activeFilter);
+
+  const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
+
+  const paginatedLogs = filteredLogs.slice(
+    (currentPage - 1) * logsPerPage,
+    currentPage * logsPerPage
+  );
 
   return (
     <>
@@ -82,7 +92,7 @@ export default function LogsPage() {
               </tr>
             </thead>
             <tbody className="font-mono text-sm">
-              {filteredLogs.map((logEntry, index) => (
+              {paginatedLogs.map((logEntry, index) => (
                 <tr key={index} className="border-b border-slate-800 hover:bg-slate-800/50">
                   <td className="p-4 text-slate-500 whitespace-nowrap">{new Date(logEntry.timestamp).toLocaleString()}</td>
                   <td className="p-4 text-cyan-400">{logEntry.service}</td>
@@ -94,6 +104,29 @@ export default function LogsPage() {
               ))}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="flex justify-between items-center p-4 border-t border-slate-800 text-sm">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => p - 1)}
+                className="px-3 py-1 bg-slate-800 rounded disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              <span className="text-slate-400">
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => p + 1)}
+                className="px-3 py-1 bg-slate-800 rounded disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          )}
           {filteredLogs.length === 0 && <p className="p-4 text-slate-500">No logs to display. Listening for new events...</p>}
         </div>
       </div>
