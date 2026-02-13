@@ -1,17 +1,19 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, FileWarning, AlertCircle } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
 import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/lib/supabase/database.types';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { useWebSocket } from '@/lib/websocket-context';
 
 type MonitoredFile = Database['public']['Tables']['monitored_files']['Row'];
 
 // --- MAIN FILE MONITORING PAGE COMPONENT ---
 export default function FileMonitoringPage() {
   const { selectedAgent } = useAgent();
+  const { logs } = useWebSocket();
   const [monitoredFiles, setMonitoredFiles] = useState<MonitoredFile[]>([]);
   const [newFilePath, setNewFilePath] = useState('');
   const supabase = createClient();
@@ -121,6 +123,13 @@ export default function FileMonitoringPage() {
     // No need to update state here - real-time subscription will handle it
   };
 
+  // Filter logs for file monitoring events for this agent
+  const fileLogs = selectedAgent 
+    ? logs
+        .filter(log => log.agent_id === selectedAgent.id && log.type === 'file_monitoring')
+        .slice(0, 10) // Show last 10 file events
+    : [];
+
   return (
     <>
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -186,9 +195,33 @@ export default function FileMonitoringPage() {
 
         {/* Recent File Logs */}
         <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-          <h3 className="text-xl font-bold text-white mb-4">Recent File Logs</h3>
-          <div className="font-mono text-xs text-slate-400 space-y-3">
-            <p>Coming soon...</p>
+          <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <FileWarning className="text-yellow-400" size={20} />
+            Recent File Events
+          </h3>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {fileLogs.length === 0 ? (
+              <p className="text-sm text-slate-500">No file events detected yet.</p>
+            ) : (
+              fileLogs.map((log, index) => (
+                <div 
+                  key={index} 
+                  className="p-3 bg-slate-800/50 rounded-lg border-l-2 border-yellow-500"
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="text-yellow-400 mt-0.5 flex-shrink-0" size={14} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-slate-400 mb-1">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </p>
+                      <p className="text-sm text-slate-200 font-mono break-words">
+                        {log.message}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
