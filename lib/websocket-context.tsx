@@ -50,11 +50,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId) return;
 
-    // Determine the WebSocket protocol
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  
+
     // UPDATE: Your Render Host
-    const host = 'hidps-backend.onrender.com'; 
-    const wsUrl = `${protocol}//${host}/?user_id=${userId}`;
+    const BACKEND_WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL || 'wss://hidps-backend-gi76.onrender.com';
+    const wsUrl = `${BACKEND_WS_URL}?user_id=${userId}`;
 
     const ws = new WebSocket(wsUrl);
     setSocket(ws); // Save the socket instance
