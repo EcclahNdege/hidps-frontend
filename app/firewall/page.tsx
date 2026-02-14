@@ -66,8 +66,7 @@ export default function FirewallPage() {
     };
   }, [selectedAgent, supabase]);
 
-  const firewallEnabled = selectedAgent?.firewall_enabled || false;
-
+const firewallEnabled = agentStats?.firewall_enabled || false;
   const handleToggleFirewall = async () => {
     if (!selectedAgent) return;
     // This functionality likely requires sending a command to the agent via the backend.
