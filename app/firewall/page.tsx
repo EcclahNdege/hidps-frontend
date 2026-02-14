@@ -23,8 +23,18 @@ export default function FirewallPage() {
   const [newRulePort, setNewRulePort] = useState('');
   const [newRuleProtocol, setNewRuleProtocol] = useState<'tcp' | 'udp'>('tcp');
   const [newRuleFrom, setNewRuleFrom] = useState('any');
-  
+
   const rules = firewallRules; // Use rules from WebSocket
+
+// ADD THESE LINES HERE ↓↓↓
+if (!selectedAgent) {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <p className="text-slate-400">Select an agent to view firewall settings...</p>
+    </div>
+  );
+}
+// ADD THESE LINES HERE ↑↑↑
 
   useEffect(() => {
     if (!selectedAgent) return;
