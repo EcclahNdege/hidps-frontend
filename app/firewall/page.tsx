@@ -170,6 +170,9 @@ if (!selectedAgent) {
                     {firewallEnabled ? <Shield size={20} /> : <ShieldOff size={20} />}
                     {firewallEnabled ? 'Active' : 'Inactive'}
                 </button>
+                <p className="text-xs text-slate-600 mt-2 text-center">
+                   Debug: {firewallEnabled ? 'Enabled' : 'Disabled'}
+                </p>
             </div>
             {/* <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
                  <h3 className="text-lg font-semibold text-white mb-4">Default Incoming</h3>
