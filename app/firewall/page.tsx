@@ -84,13 +84,6 @@ export default function FirewallPage() {
     });
   };
 
-  const handlePolicyChange = (policyType: 'incoming' | 'outgoing', value: Policy) => {
-    if (policyType === 'incoming') setDefaultIncoming(value);
-    else setDefaultOutgoing(value);
-    // This should send a command to the agent.
-    console.log(`ALERT on ${selectedAgent?.name}: Default ${policyType} policy changed to ${value}.`);
-  };
-
   const handleAddRule = (e: React.SubmitEvent) => {
     e.preventDefault();
     if (!selectedAgent || !newRulePort) return;
