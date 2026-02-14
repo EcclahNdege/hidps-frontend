@@ -8,6 +8,7 @@ import { Database } from '@/lib/supabase/database.types';
 import { useWebSocket } from '@/lib/websocket-context';
 
 type AgentStats = Database['public']['Tables']['agent_stats']['Row'];
+type Agent = Database['public']['Tables']['agents']['Row'];
 
 type Policy = 'allow' | 'deny' | 'reject';
 
@@ -16,6 +17,7 @@ export default function FirewallPage() {
   const { selectedAgent } = useAgent();
   const { firewallRules, isConnected, sendCommand } = useWebSocket();
   const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
+  const [localFirewallEnabled, setLocalFirewallEnabled] = useState<boolean | null>(null);
   const [isToggling, setIsToggling] = useState(false);
   const supabase = createClient();
   
@@ -46,7 +48,8 @@ export default function FirewallPage() {
 
     fetchAgentStats();
 
-    const channel = supabase
+    // Subscribe to agent_stats changes
+    const statsChannel = supabase
       .channel(`agent_stats:agent_id=eq.${selectedAgent.id}`)
       .on<AgentStats>(
         'postgres_changes',
@@ -64,17 +67,35 @@ export default function FirewallPage() {
       )
       .subscribe();
 
+    // Subscribe to agents table for firewall_enabled changes (this is what backend updates!)
+    const agentsChannel = supabase
+      .channel(`agents:id=eq.${selectedAgent.id}`)
+      .on<Agent>(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'agents',
+          filter: `id=eq.${selectedAgent.id}`,
+        },
+        (payload) => {
+          const newAgent = payload.new as any;
+          console.log('Agent firewall status updated:', newAgent.firewall_enabled);
+          setLocalFirewallEnabled(newAgent.firewall_enabled ?? false);
+          // Clear loading immediately when firewall status changes
+          setIsToggling(false);
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(statsChannel);
+      supabase.removeChannel(agentsChannel);
     };
   }, [selectedAgent, supabase]);
 
-  const firewallEnabled = selectedAgent?.firewall_enabled ?? false;
-  
-  // Clear loading when firewall state changes
-  useEffect(() => {
-    setIsToggling(false);
-  }, [firewallEnabled]);
+  // Use local state if available (from realtime), otherwise fall back to selectedAgent
+  const firewallEnabled = localFirewallEnabled ?? selectedAgent?.firewall_enabled ?? false;
   
   const handleToggleFirewall = async () => {
     if (!selectedAgent) return;
