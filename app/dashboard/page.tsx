@@ -138,7 +138,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Recent Alerts */}
         <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
           <h3 className="text-xl font-bold text-white mb-4">Recent Alerts</h3>
@@ -176,6 +176,27 @@ export default function DashboardPage() {
             {recentLogs.length === 0 && (
               <p className="text-slate-500">No recent logs.</p>
             )}
+          </div>
+        </div>
+
+        {/* Daily Reports */}
+        <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
+          <h3 className="text-xl font-bold text-white mb-4">Daily Reports</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center p-3 rounded-lg hover:bg-slate-800/50">
+              <div>
+                <p className="font-semibold text-white">Summary for July 21, 2024</p>
+                <p className="text-sm text-slate-400">No critical issues.</p>
+              </div>
+              <a href="#" className="text-sm text-cyan-400 hover:underline">View</a>
+            </div>
+            <div className="flex justify-between items-center p-3 rounded-lg hover:bg-slate-800/50">
+              <div>
+                <p className="font-semibold text-white">Summary for July 20, 2024</p>
+                <p className="text-sm text-slate-400">3 medium alerts.</p>
+              </div>
+              <a href="#" className="text-sm text-cyan-400 hover:underline">View</a>
+            </div>
           </div>
         </div>
       </div>
