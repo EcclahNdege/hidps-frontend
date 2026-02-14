@@ -45,17 +45,9 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             href={item.href} 
             className={`flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
             title={isCollapsed ? item.label : ''}
-            key={item.href}
-            href={item.href}
-            className={`relative group flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
           >
             <item.icon size={20} />
             {!isCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
-            {isCollapsed && (
-              <span className="absolute left-full rounded-md px-2 py-1 ml-4 bg-slate-800 text-white text-sm invisible opacity-20 -translate-x-3 transition-all group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 whitespace-nowrap z-10">
-                {item.label}
-              </span>
-            )}
           </Link>
         ))}
       </nav>
@@ -65,29 +57,16 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           href="/dashboard/settings" 
           className={`flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
           title={isCollapsed ? 'Settings' : ''}
-          href="/dashboard/settings"
-          className={`relative group flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
         >
           <Settings size={20} />
           {!isCollapsed && <span className="whitespace-nowrap">Settings</span>}
-          {isCollapsed && (
-            <span className="absolute left-full rounded-md px-2 py-1 ml-4 bg-slate-800 text-white text-sm invisible opacity-20 -translate-x-3 transition-all group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 whitespace-nowrap z-10">
-              Settings
-            </span>
-          )}
         </Link>
         <button 
           className={`w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
           title={isCollapsed ? 'Logout' : ''}
-          className={`relative group w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
         >
           <LogOut size={20} />
           {!isCollapsed && <span className="whitespace-nowrap">Logout</span>}
-          {isCollapsed && (
-            <span className="absolute left-full rounded-md px-2 py-1 ml-4 bg-slate-800 text-white text-sm invisible opacity-20 -translate-x-3 transition-all group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 whitespace-nowrap z-10">
-              Logout
-            </span>
-          )}
         </button>
       </div>
     </aside>
