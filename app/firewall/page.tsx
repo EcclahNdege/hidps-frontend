@@ -66,7 +66,7 @@ export default function FirewallPage() {
     };
   }, [selectedAgent, supabase]);
 
-const firewallEnabled = selectedAgent?.firewall_enabled || false;
+  const firewallEnabled = selectedAgent?.firewall_enabled ?? false;
   const handleToggleFirewall = async () => {
     if (!selectedAgent || !agentStats) return;
 
