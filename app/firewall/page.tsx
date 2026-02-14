@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Shield, ShieldOff, Plus, Trash2, ChevronDown, Wifi, WifiOff } from 'lucide-react';
+import { Shield, ShieldOff, Plus, Trash2, ChevronDown, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
 import { createClient } from '@/lib/supabase/client';
@@ -16,6 +16,7 @@ export default function FirewallPage() {
   const { selectedAgent } = useAgent();
   const { firewallRules, isConnected, sendCommand } = useWebSocket();
   const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
+  const [isToggling, setIsToggling] = useState(false);
   const supabase = createClient();
   
   // State for the new rule form
@@ -24,17 +25,7 @@ export default function FirewallPage() {
   const [newRuleProtocol, setNewRuleProtocol] = useState<'tcp' | 'udp'>('tcp');
   const [newRuleFrom, setNewRuleFrom] = useState('any');
 
-  const rules = firewallRules; // Use rules from WebSocket
-
-// ADD THESE LINES HERE ↓↓↓
-if (!selectedAgent) {
-  return (
-    <div className="flex items-center justify-center h-64">
-      <p className="text-slate-400">Select an agent to view firewall settings...</p>
-    </div>
-  );
-}
-// ADD THESE LINES HERE ↑↑↑
+  const rules = firewallRules;
 
   useEffect(() => {
     if (!selectedAgent) return;
@@ -76,60 +67,52 @@ if (!selectedAgent) {
     };
   }, [selectedAgent, supabase]);
 
-  const firewallEnabled = selectedAgent?.firewall_enabled ?? false;
+  // ✅ NOW we can check if agent is loaded (AFTER useEffect)
+  if (!selectedAgent) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-slate-400">Select an agent to view firewall settings...</p>
+      </div>
+    );
+  }
+
+  // ✅ Read from selectedAgent.firewall_enabled (NOT agentStats)
+  const firewallEnabled = selectedAgent.firewall_enabled ?? false;
+
   const handleToggleFirewall = async () => {
-    if (!selectedAgent || !agentStats) return;
+    const newState = !firewallEnabled;
+    console.log(`Toggling firewall from ${firewallEnabled} to: ${newState}`);
 
-    // Optimistic UI update
-    setAgentStats({
-      ...agentStats,
-      firewall_enabled: !firewallEnabled,
-    });
+    setIsToggling(true);
 
-    // Send command to agent
     sendCommand(selectedAgent.id, "toggle_firewall", { 
-      enabled: !firewallEnabled 
+      enabled: newState 
     });
+
+    // Clear loading after 3 seconds
+    setTimeout(() => setIsToggling(false), 3000);
   };
 
-  const handleAddRule = (e: React.SubmitEvent) => {
+  const handleAddRule = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAgent || !newRulePort) return;
+    if (!newRulePort) return;
 
-    // Format for UFW command (e.g., "80/tcp")
     const ruleString = `${newRulePort}/${newRuleProtocol}`;
     
     sendCommand(selectedAgent.id, "add_firewall_rule", {
       rule: ruleString,
-      action: newRuleAction
+      action: newRuleAction,
+      from: newRuleFrom
     });
 
-    setNewRulePort(''); // Clear input
+    setNewRulePort('');
   };
 
   const handleRemoveRule = (index: string) => {
-    if (!selectedAgent) return;
-    
-    // Send the rule number (index) to delete
     sendCommand(selectedAgent.id, "delete_firewall_rule", {
       index: index
     });
   };
-
-  const PolicyDropdown = ({ value, onChange }: { value: Policy, onChange: (v: Policy) => void }) => (
-    <div className="relative">
-        <select
-            value={value}
-            onChange={(e) => onChange(e.target.value as Policy)}
-            className="appearance-none w-full bg-slate-800 border border-slate-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-            <option value="allow">Allow</option>
-            <option value="deny">Deny</option>
-            <option value="reject">Reject</option>
-        </select>
-        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-    </div>
-  );
 
   return (
     <>
@@ -161,38 +144,50 @@ if (!selectedAgent) {
                 <h3 className="text-lg font-semibold text-white mb-4">Firewall Status</h3>
                 <button 
                     onClick={handleToggleFirewall}
+                    disabled={!isConnected || isToggling}
                     className={`w-full flex items-center justify-center gap-3 py-3 rounded-lg font-semibold transition-colors ${
                         firewallEnabled
                             ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
                             : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
-                    }`}
+                    } ${(!isConnected || isToggling) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                    {firewallEnabled ? <Shield size={20} /> : <ShieldOff size={20} />}
-                    {firewallEnabled ? 'Active' : 'Inactive'}
+                    {isToggling ? (
+                      <>
+                        <Loader2 size={20} className="animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        {firewallEnabled ? <Shield size={20} /> : <ShieldOff size={20} />}
+                        {firewallEnabled ? 'Active' : 'Inactive'}
+                      </>
+                    )}
                 </button>
+                {!isConnected && !isToggling && (
+                  <p className="text-xs text-slate-500 mt-2 text-center">
+                    WebSocket disconnected
+                  </p>
+                )}
+                {isToggling && (
+                  <p className="text-xs text-blue-400 mt-2 text-center animate-pulse">
+                    Sending command to agent...
+                  </p>
+                )}
                 <p className="text-xs text-slate-600 mt-2 text-center">
                    Debug: {firewallEnabled ? 'Enabled' : 'Disabled'}
                 </p>
             </div>
-            {/* <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-                 <h3 className="text-lg font-semibold text-white mb-4">Default Incoming</h3>
-                 <PolicyDropdown value={defaultIncoming} onChange={(v) => handlePolicyChange('incoming', v)} />
-            </div>
-            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-                 <h3 className="text-lg font-semibold text-white mb-4">Default Outgoing</h3>
-                 <PolicyDropdown value={defaultOutgoing} onChange={(v) => handlePolicyChange('outgoing', v)} />
-            </div> */}
-            {/* This firewall is always in "default deny incoming, default allow outgoing" mode. Explain that to the user */}
-            <div className="bg-slate-900 p-2 rounded-xl border border-slate-800">
+            
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 col-span-2">
                   <h3 className="text-lg font-semibold text-white mb-4">Default Policies</h3>
                   <p className="text-slate-400">This firewall operates in a default deny incoming, default allow outgoing mode.</p>
             </div>
-
         </div>
 
         {/* Firewall Rules */}
         <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
             <h3 className="text-lg font-semibold text-white mb-4">Firewall Rules</h3>
+            
             {/* Add Rule Form */}
             <form onSubmit={handleAddRule} className="grid grid-cols-2 md:grid-cols-5 gap-3 items-end mb-6 p-4 bg-slate-950/50 rounded-lg">
                 <div className="col-span-2 md:col-span-1">
@@ -217,7 +212,7 @@ if (!selectedAgent) {
                     <label className="text-sm font-medium text-slate-400 mb-1 block">From</label>
                     <input type="text" placeholder="any" value={newRuleFrom} onChange={e => setNewRuleFrom(e.target.value)} className="w-full bg-slate-800 border-slate-700 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
                 </div>
-                <button type="submit" className="col-span-2 md:col-span-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg h-10">
+                <button type="submit" disabled={!isConnected} className="col-span-2 md:col-span-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg h-10 disabled:opacity-50 disabled:cursor-not-allowed">
                     <Plus size={18}/> Add Rule
                 </button>
             </form>
@@ -228,7 +223,6 @@ if (!selectedAgent) {
                     <tr className="border-b border-slate-800 text-sm text-slate-400">
                         <th className="p-4">Action</th>
                         <th className="p-4">Port/Service</th>
-                        <th className="p-4">Protocol</th>
                         <th className="p-4">From</th>
                         <th className="p-4"></th>
                     </tr>
@@ -239,10 +233,14 @@ if (!selectedAgent) {
                             <td className={`p-4 font-semibold ${rule.action.toLowerCase() === 'allow' ? 'text-green-400' : 'text-red-400'}`}>
                               {rule.action.toUpperCase()}
                             </td>
-                            <td className="p-4 font-mono">{rule.to}</td> {/* UFW parsed 'to' */}
-                            <td className="p-4 font-mono">{rule.from}</td> {/* UFW parsed 'from' */}
+                            <td className="p-4 font-mono">{rule.to}</td>
+                            <td className="p-4 font-mono">{rule.from}</td>
                             <td className="p-4 text-right">
-                              <button onClick={() => handleRemoveRule(rule.id)} className="...">
+                              <button 
+                                onClick={() => handleRemoveRule(rule.id)} 
+                                disabled={!isConnected}
+                                className="p-2 text-red-500 hover:bg-red-500/10 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
                                 <Trash2 size={16}/>
                               </button>
                             </td>
