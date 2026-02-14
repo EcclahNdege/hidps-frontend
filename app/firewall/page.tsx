@@ -68,16 +68,15 @@ export default function FirewallPage() {
 
 const firewallEnabled = agentStats?.firewall_enabled || false;
   const handleToggleFirewall = async () => {
-    if (!selectedAgent) return;
-    // This functionality likely requires sending a command to the agent via the backend.
-    // For now, we'll just update the optimistic UI state.
-    // const { error } = await supabase
-    //   .from('agent_stats')
-    //   .update({ firewall_enabled: !firewallEnabled })
-    //   .eq('agent_id', selectedAgent.id);
-    // if (error) {
-    //   console.error('Error toggling firewall:', error);
-    // }
+    if (!selectedAgent || !agentStats) return;
+
+    // Optimistic UI update
+    setAgentStats({
+      ...agentStats,
+      firewall_enabled: !firewallEnabled,
+    });
+
+    // Send command to agent
     sendCommand(selectedAgent.id, "toggle_firewall", { 
       enabled: !firewallEnabled 
     });
