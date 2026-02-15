@@ -132,6 +132,9 @@ export default function FirewallPage() {
   };
 
   const handleConfirmDelete = () => {
+    // SUPER OBVIOUS DEBUG
+    alert('DELETE BUTTON CLICKED! Rule ID: ' + (ruleToDelete?.id || 'NONE'));
+    
     if (!selectedAgent || !ruleToDelete) return;
     
     console.log('🔥 Deleting rule with index:', ruleToDelete.id);
