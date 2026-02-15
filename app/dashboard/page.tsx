@@ -108,7 +108,7 @@ export default function DashboardPage() {
   const cpu = Number(agentStats?.cpu_usage ?? 0);
   const ram = Number(agentStats?.ram_usage ?? 0);
   const storage = Number(agentStats?.storage_usage ?? 0);
-  const firewallEnabled = agentStats?.firewall_enabled || false;
+  const firewallEnabled = selectedAgent?.firewall_enabled ?? false;
 
   return (
     <>
