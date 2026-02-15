@@ -13,7 +13,7 @@ type MonitoredFile = Database['public']['Tables']['monitored_files']['Row'];
 // --- MAIN FILE MONITORING PAGE COMPONENT ---
 export default function FileMonitoringPage() {
   const { selectedAgent } = useAgent();
-  const { logs } = useWebSocket();
+  const { logs, sendCommand } = useWebSocket(); // ADD sendCommand here
   const [monitoredFiles, setMonitoredFiles] = useState<MonitoredFile[]>([]);
   const [newFilePath, setNewFilePath] = useState('');
   const supabase = createClient();
@@ -32,6 +32,14 @@ export default function FileMonitoringPage() {
         console.error('Error fetching monitored files:', error);
       } else {
         setMonitoredFiles(data);
+        
+        // IMPORTANT: Send monitor_file command for all existing files on page load
+        // This ensures the agent starts watching them
+        if (sendCommand && data) {
+          data.forEach(file => {
+            sendCommand(selectedAgent.id, 'monitor_file', { path: file.file_path });
+          });
+        }
       }
     };
 
@@ -89,7 +97,7 @@ export default function FileMonitoringPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedAgent, supabase]);
+  }, [selectedAgent, supabase, sendCommand]); // Add sendCommand to dependencies
 
   const handleAddFile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,18 +117,30 @@ export default function FileMonitoringPage() {
     if (error) {
       console.error('Error adding file:', error);
     } else {
-      // No need to update state here - real-time subscription will handle it
+      // FIXED: Send command to agent via WebSocket to start monitoring
+      if (sendCommand) {
+        sendCommand(selectedAgent.id, 'monitor_file', { path: newFilePath.trim() });
+        console.log('Sent monitor_file command for:', newFilePath.trim());
+      }
       setNewFilePath('');
     }
   };
 
   const handleRemoveFile = async (id: string) => {
+    // Find the file to get its path before deleting
+    const fileToRemove = monitoredFiles.find(f => f.id === id);
+    
     const { error } = await supabase.from('monitored_files').delete().eq('id', id);
     
     if (error) {
       console.error('Error deleting file:', error);
+    } else {
+      // FIXED: Send command to agent to stop monitoring
+      if (sendCommand && fileToRemove && selectedAgent) {
+        sendCommand(selectedAgent.id, 'unmonitor_file', { path: fileToRemove.file_path });
+        console.log('Sent unmonitor_file command for:', fileToRemove.file_path);
+      }
     }
-    // No need to update state here - real-time subscription will handle it
   };
 
   // Filter logs for file monitoring events for this agent
