@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Bell, FileWarning, Shield, Users, Trash2, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Bell, FileWarning, Shield, Users, Trash2, X, CheckCircle, AlertCircle, Trash } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
 import { createClient } from '@/lib/supabase/client';
@@ -21,10 +21,10 @@ const alertTypes = [
 
 const getSeverityStyling = (severity: number) => {
     switch (severity) {
-        case 4: return 'bg-red-500/20 text-red-400 border-red-500/30'; // Critical
-        case 3: return 'bg-orange-500/20 text-orange-400 border-orange-500/30'; // High
-        case 2: return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'; // Medium
-        default: return 'bg-blue-500/20 text-blue-400 border-blue-500/30'; // Low
+        case 4: return 'bg-red-500/20 text-red-400 border-red-500/30';
+        case 3: return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+        case 2: return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
+        default: return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
     }
 };
 
@@ -37,6 +37,31 @@ const getSeverityName = (severity: number): Severity => {
     }
 }
 
+// Format alert messages to be more readable
+function formatAlertMessage(message: string): string {
+  // If message contains temp file references, clean them up
+  if (message.includes('.goutputstream')) {
+    const fileMatch = message.match(/to\s+(.+\.py|.+\.txt|.+\.json|.+\.conf|.+)/);
+    if (fileMatch) {
+      const filename = fileMatch[1].split('/').pop();
+      return `The monitored file "${filename}" was saved.`;
+    }
+  }
+  
+  // If message starts with "Moved:", make it readable
+  if (message.startsWith('Moved:')) {
+    const toMatch = message.match(/to\s+(.+)/);
+    if (toMatch) {
+      const filepath = toMatch[1].trim();
+      const filename = filepath.split('/').pop() || filepath;
+      return `The file "${filename}" was modified and saved.`;
+    }
+  }
+  
+  // Return original message if no cleanup needed
+  return message;
+}
+
 // --- MAIN ALERTS PAGE COMPONENT ---
 export default function AlertsPage() {
   const { selectedAgent } = useAgent();
@@ -44,6 +69,8 @@ export default function AlertsPage() {
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [activeFilter, setActiveFilter] = useState('All');
   const [debugMode, setDebugMode] = useState(false);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -56,7 +83,6 @@ export default function AlertsPage() {
       if (activeFilter !== 'All') {
         const filterConfig = alertTypes.find(t => t.name === activeFilter);
         if (filterConfig && filterConfig.dbTypes.length > 0) {
-          // Use OR filter for multiple types
           query = query.in('alert_type', filterConfig.dbTypes);
         }
       }
@@ -87,7 +113,6 @@ export default function AlertsPage() {
         (payload: RealtimePostgresChangesPayload<Alert> | any) => {
           console.log('New alert inserted:', payload.new);
           
-          // Check if this alert matches the current filter
           const shouldShow = activeFilter === 'All' || 
             alertTypes.find(t => t.name === activeFilter)?.dbTypes.includes(payload.new.alert_type);
           
@@ -109,7 +134,6 @@ export default function AlertsPage() {
           setAlerts((current) =>
             current.map((alert) => (alert.id === payload.new.id ? payload.new : alert))
           );
-          // Update selected alert if it's the one being viewed
           if (selectedAlert?.id === payload.new.id) {
             setSelectedAlert(payload.new);
           }
@@ -126,7 +150,6 @@ export default function AlertsPage() {
         (payload: RealtimePostgresChangesPayload<Alert> | any) => {
           console.log('Alert deleted:', payload.old);
           setAlerts((current) => current.filter((alert) => alert.id !== payload.old.id));
-          // Close modal if the deleted alert is being viewed
           if (selectedAlert?.id === payload.old.id) {
             setSelectedAlert(null);
           }
@@ -134,7 +157,6 @@ export default function AlertsPage() {
       )
       .subscribe();
 
-    // Cleanup subscription on unmount or when selectedAgent/activeFilter changes
     return () => {
       supabase.removeChannel(channel);
     };
@@ -156,7 +178,6 @@ export default function AlertsPage() {
     if (error) {
       console.error('Error resolving alert:', error);
     }
-    // No need to update state here - real-time subscription will handle it
   };
 
   const handleDelete = async (id: string) => {
@@ -165,13 +186,47 @@ export default function AlertsPage() {
     if (error) {
       console.error('Error deleting alert:', error);
     }
-    // No need to update state here - real-time subscription will handle it
   };
 
-  // Get unique alert types in database for debugging
+  const handleDeleteAll = async () => {
+    if (!selectedAgent) return;
+    
+    setIsDeleting(true);
+    
+    // Get IDs of alerts to delete based on current filter
+    let query = supabase.from('alerts').select('id').eq('agent_id', selectedAgent.id);
+    
+    if (activeFilter !== 'All') {
+      const filterConfig = alertTypes.find(t => t.name === activeFilter);
+      if (filterConfig && filterConfig.dbTypes.length > 0) {
+        query = query.in('alert_type', filterConfig.dbTypes);
+      }
+    }
+    
+    const { data: alertsToDelete, error: fetchError } = await query;
+    
+    if (fetchError) {
+      console.error('Error fetching alerts to delete:', fetchError);
+      setIsDeleting(false);
+      return;
+    }
+    
+    // Delete all alerts
+    const { error: deleteError } = await supabase
+      .from('alerts')
+      .delete()
+      .in('id', alertsToDelete.map(a => a.id));
+    
+    if (deleteError) {
+      console.error('Error deleting all alerts:', deleteError);
+    }
+    
+    setIsDeleting(false);
+    setShowDeleteAllConfirm(false);
+  };
+
   const uniqueAlertTypes = [...new Set(alerts.map(a => a.alert_type))];
   
-  // Count alerts per category
   const getCategoryCount = (categoryName: string) => {
     if (categoryName === 'All') return alerts.length;
     const filterConfig = alertTypes.find(t => t.name === categoryName);
@@ -196,7 +251,18 @@ export default function AlertsPage() {
             </button>
           </div>
         </div>
-        <AgentSelector />
+        <div className="flex items-center gap-3">
+          {alerts.length > 0 && (
+            <button
+              onClick={() => setShowDeleteAllConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg border border-red-600/30 transition"
+            >
+              <Trash size={16} />
+              Delete All {activeFilter !== 'All' ? activeFilter : ''} Alerts
+            </button>
+          )}
+          <AgentSelector />
+        </div>
       </header>
 
       {/* Debug Info Panel */}
@@ -243,22 +309,25 @@ export default function AlertsPage() {
 
       {/* Alerts List */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-        {alerts.map(alert => (
-          <div 
-            key={alert.id}
-            onClick={() => setSelectedAlert(alert)}
-            className={`bg-slate-900 rounded-xl border-l-4 p-5 cursor-pointer transition-all hover:bg-slate-800/50 ${getSeverityStyling(alert.severity)} ${alert.resolved ? 'opacity-50' : ''}`}
-          >
-            <div className="flex justify-between items-start">
-              <h3 className="font-bold text-white pr-4">{alert.title}</h3>
-              <span className="text-xs text-slate-500 whitespace-nowrap">{new Date(alert.created_at).toLocaleTimeString()}</span>
+        {alerts.map(alert => {
+          const formattedMessage = formatAlertMessage(alert.message || '');
+          return (
+            <div 
+              key={alert.id}
+              onClick={() => setSelectedAlert(alert)}
+              className={`bg-slate-900 rounded-xl border-l-4 p-5 cursor-pointer transition-all hover:bg-slate-800/50 ${getSeverityStyling(alert.severity)} ${alert.resolved ? 'opacity-50' : ''}`}
+            >
+              <div className="flex justify-between items-start">
+                <h3 className="font-bold text-white pr-4">{alert.title}</h3>
+                <span className="text-xs text-slate-500 whitespace-nowrap">{new Date(alert.created_at).toLocaleTimeString()}</span>
+              </div>
+              <p className="text-sm text-slate-400 mt-2 line-clamp-2">{formattedMessage}</p>
+              {debugMode && (
+                <p className="text-xs text-cyan-400 mt-2 font-mono">Type: {alert.alert_type}</p>
+              )}
             </div>
-            <p className="text-sm text-slate-400 mt-2 line-clamp-2">{alert.message}</p>
-            {debugMode && (
-              <p className="text-xs text-cyan-400 mt-2 font-mono">Type: {alert.alert_type}</p>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {alerts.length === 0 && (
           <div className="col-span-full text-center py-8">
             <p className="text-slate-500 mb-2">No alerts for this category.</p>
@@ -276,6 +345,44 @@ export default function AlertsPage() {
           </div>
         )}
       </div>
+
+      {/* Delete All Confirmation Modal */}
+      {showDeleteAllConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-red-500/20 rounded-full">
+                <Trash className="text-red-400" size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Delete All Alerts?</h3>
+                <p className="text-sm text-slate-400">
+                  {activeFilter === 'All' 
+                    ? `This will permanently delete all ${alerts.length} alerts.`
+                    : `This will permanently delete all ${getCategoryCount(activeFilter)} ${activeFilter} alerts.`
+                  }
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteAllConfirm(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAll}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete All'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Alert Detail Modal */}
       {selectedAlert && (
@@ -295,7 +402,7 @@ export default function AlertsPage() {
               <button onClick={() => setSelectedAlert(null)} className="p-2 rounded-full hover:bg-slate-800"><X size={20}/></button>
             </header>
             <div className="p-6">
-              <p className="text-slate-300 whitespace-pre-wrap">{selectedAlert.message}</p>
+              <p className="text-slate-300 whitespace-pre-wrap">{formatAlertMessage(selectedAlert.message || '')}</p>
             </div>
             <footer className="p-6 border-t border-slate-800 flex justify-end gap-4">
               <button onClick={() => handleDelete(selectedAlert.id)} className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20"><Trash2 size={16}/> Delete</button>
