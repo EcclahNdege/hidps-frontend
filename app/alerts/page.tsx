@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Bell, FileWarning, Shield, Users, Trash2, X, CheckCircle, AlertCircle, Trash } from 'lucide-react';
+import { Bell, FileWarning, Shield, Users, Trash2, X, CheckCircle, AlertCircle, Trash, Loader2 } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
 import { createClient } from '@/lib/supabase/client';
@@ -39,7 +39,6 @@ const getSeverityName = (severity: number): Severity => {
 
 // Format alert messages to be more readable
 function formatAlertMessage(message: string): string {
-  // If message contains temp file references, clean them up
   if (message.includes('.goutputstream')) {
     const fileMatch = message.match(/to\s+(.+\.py|.+\.txt|.+\.json|.+\.conf|.+)/);
     if (fileMatch) {
@@ -48,7 +47,6 @@ function formatAlertMessage(message: string): string {
     }
   }
   
-  // If message starts with "Moved:", make it readable
   if (message.startsWith('Moved:')) {
     const toMatch = message.match(/to\s+(.+)/);
     if (toMatch) {
@@ -58,8 +56,22 @@ function formatAlertMessage(message: string): string {
     }
   }
   
-  // Return original message if no cleanup needed
   return message;
+}
+
+// Toast notification component
+function Toast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-in slide-in-from-bottom">
+      <CheckCircle size={20} />
+      <span>{message}</span>
+    </div>
+  );
 }
 
 // --- MAIN ALERTS PAGE COMPONENT ---
@@ -71,6 +83,8 @@ export default function AlertsPage() {
   const [debugMode, setDebugMode] = useState(false);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<string | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -79,7 +93,6 @@ export default function AlertsPage() {
     const fetchAlerts = async () => {
       let query = supabase.from('alerts').select('*').eq('agent_id', selectedAgent.id);
       
-      // Filter by alert type if not "All"
       if (activeFilter !== 'All') {
         const filterConfig = alertTypes.find(t => t.name === activeFilter);
         if (filterConfig && filterConfig.dbTypes.length > 0) {
@@ -92,14 +105,12 @@ export default function AlertsPage() {
       if (error) {
         console.error('Error fetching alerts:', error);
       } else {
-        console.log('Fetched alerts:', data);
         setAlerts(data);
       }
     };
 
     fetchAlerts();
 
-    // Set up real-time subscription
     const channel = supabase
       .channel(`alerts:agent_id=eq.${selectedAgent.id}`)
       .on<Alert>(
@@ -111,8 +122,6 @@ export default function AlertsPage() {
           filter: `agent_id=eq.${selectedAgent.id}`,
         },
         (payload: RealtimePostgresChangesPayload<Alert> | any) => {
-          console.log('New alert inserted:', payload.new);
-          
           const shouldShow = activeFilter === 'All' || 
             alertTypes.find(t => t.name === activeFilter)?.dbTypes.includes(payload.new.alert_type);
           
@@ -130,7 +139,6 @@ export default function AlertsPage() {
           filter: `agent_id=eq.${selectedAgent.id}`,
         },
         (payload: RealtimePostgresChangesPayload<Alert> | any) => {
-          console.log('Alert updated:', payload.new);
           setAlerts((current) =>
             current.map((alert) => (alert.id === payload.new.id ? payload.new : alert))
           );
@@ -148,8 +156,12 @@ export default function AlertsPage() {
           filter: `agent_id=eq.${selectedAgent.id}`,
         },
         (payload: RealtimePostgresChangesPayload<Alert> | any) => {
-          console.log('Alert deleted:', payload.old);
           setAlerts((current) => current.filter((alert) => alert.id !== payload.old.id));
+          setDeletingIds(prev => {
+            const next = new Set(prev);
+            next.delete(payload.old.id);
+            return next;
+          });
           if (selectedAlert?.id === payload.old.id) {
             setSelectedAlert(null);
           }
@@ -181,10 +193,19 @@ export default function AlertsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    // Mark as deleting immediately
+    setDeletingIds(prev => new Set(prev).add(id));
+    
     const { error } = await supabase.from('alerts').delete().eq('id', id);
     
     if (error) {
       console.error('Error deleting alert:', error);
+      // Remove from deleting set on error
+      setDeletingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -193,36 +214,43 @@ export default function AlertsPage() {
     
     setIsDeleting(true);
     
-    // Get IDs of alerts to delete based on current filter
-    let query = supabase.from('alerts').select('id').eq('agent_id', selectedAgent.id);
+    // Get alerts to delete
+    const alertsToDelete = activeFilter === 'All' 
+      ? alerts
+      : alerts.filter(a => {
+          const filterConfig = alertTypes.find(t => t.name === activeFilter);
+          return filterConfig?.dbTypes.includes(a.alert_type || '');
+        });
     
-    if (activeFilter !== 'All') {
-      const filterConfig = alertTypes.find(t => t.name === activeFilter);
-      if (filterConfig && filterConfig.dbTypes.length > 0) {
-        query = query.in('alert_type', filterConfig.dbTypes);
-      }
-    }
+    const idsToDelete = alertsToDelete.map(a => a.id);
+    const count = idsToDelete.length;
     
-    const { data: alertsToDelete, error: fetchError } = await query;
+    // IMMEDIATE UI UPDATE - Remove from view right away
+    setAlerts(current => current.filter(alert => !idsToDelete.includes(alert.id)));
+    setShowDeleteAllConfirm(false);
+    setToast(`Deleting ${count} alert${count !== 1 ? 's' : ''}...`);
     
-    if (fetchError) {
-      console.error('Error fetching alerts to delete:', fetchError);
-      setIsDeleting(false);
-      return;
-    }
-    
-    // Delete all alerts
-    const { error: deleteError } = await supabase
+    // Delete from database in background
+    const { error } = await supabase
       .from('alerts')
       .delete()
-      .in('id', alertsToDelete.map(a => a.id));
+      .in('id', idsToDelete);
     
-    if (deleteError) {
-      console.error('Error deleting all alerts:', deleteError);
+    if (error) {
+      console.error('Error deleting alerts:', error);
+      // Refetch on error to restore accurate state
+      const { data } = await supabase
+        .from('alerts')
+        .select('*')
+        .eq('agent_id', selectedAgent.id)
+        .order('created_at', { ascending: false });
+      if (data) setAlerts(data);
+      setToast('Failed to delete alerts');
+    } else {
+      setToast(`Deleted ${count} alert${count !== 1 ? 's' : ''}`);
     }
     
     setIsDeleting(false);
-    setShowDeleteAllConfirm(false);
   };
 
   const uniqueAlertTypes = [...new Set(alerts.map(a => a.alert_type))];
@@ -236,6 +264,9 @@ export default function AlertsPage() {
 
   return (
     <>
+      {/* Toast Notification */}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+
       {/* Main Content */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
@@ -255,10 +286,20 @@ export default function AlertsPage() {
           {alerts.length > 0 && (
             <button
               onClick={() => setShowDeleteAllConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg border border-red-600/30 transition"
+              disabled={isDeleting}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg border border-red-600/30 transition disabled:opacity-50"
             >
-              <Trash size={16} />
-              Delete All {activeFilter !== 'All' ? activeFilter : ''} Alerts
+              {isDeleting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash size={16} />
+                  Delete All {activeFilter !== 'All' ? activeFilter : ''} ({alerts.length})
+                </>
+              )}
             </button>
           )}
           <AgentSelector />
@@ -311,12 +352,19 @@ export default function AlertsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
         {alerts.map(alert => {
           const formattedMessage = formatAlertMessage(alert.message || '');
+          const isDeleting = deletingIds.has(alert.id);
+          
           return (
             <div 
               key={alert.id}
-              onClick={() => setSelectedAlert(alert)}
-              className={`bg-slate-900 rounded-xl border-l-4 p-5 cursor-pointer transition-all hover:bg-slate-800/50 ${getSeverityStyling(alert.severity)} ${alert.resolved ? 'opacity-50' : ''}`}
+              onClick={() => !isDeleting && setSelectedAlert(alert)}
+              className={`bg-slate-900 rounded-xl border-l-4 p-5 cursor-pointer transition-all hover:bg-slate-800/50 ${getSeverityStyling(alert.severity)} ${alert.resolved ? 'opacity-50' : ''} ${isDeleting ? 'opacity-30 pointer-events-none' : ''}`}
             >
+              {isDeleting && (
+                <div className="flex items-center justify-center mb-2">
+                  <Loader2 size={16} className="animate-spin text-slate-400" />
+                </div>
+              )}
               <div className="flex justify-between items-start">
                 <h3 className="font-bold text-white pr-4">{alert.title}</h3>
                 <span className="text-xs text-slate-500 whitespace-nowrap">{new Date(alert.created_at).toLocaleTimeString()}</span>
@@ -368,15 +416,16 @@ export default function AlertsPage() {
               <button
                 onClick={() => setShowDeleteAllConfirm(false)}
                 disabled={isDeleting}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteAll}
                 disabled={isDeleting}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition disabled:opacity-50"
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition disabled:opacity-50 flex items-center gap-2"
               >
+                {isDeleting && <Loader2 size={16} className="animate-spin" />}
                 {isDeleting ? 'Deleting...' : 'Delete All'}
               </button>
             </div>
@@ -405,9 +454,22 @@ export default function AlertsPage() {
               <p className="text-slate-300 whitespace-pre-wrap">{formatAlertMessage(selectedAlert.message || '')}</p>
             </div>
             <footer className="p-6 border-t border-slate-800 flex justify-end gap-4">
-              <button onClick={() => handleDelete(selectedAlert.id)} className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20"><Trash2 size={16}/> Delete</button>
+              <button 
+                onClick={() => {
+                  handleDelete(selectedAlert.id);
+                  setSelectedAlert(null);
+                }} 
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-400 rounded-lg hover:bg-red-500/20"
+              >
+                <Trash2 size={16}/> Delete
+              </button>
               {!selectedAlert.resolved && 
-                <button onClick={() => handleResolve(selectedAlert.id)} className="flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20"><CheckCircle size={16}/> Resolve Alert</button>
+                <button 
+                  onClick={() => handleResolve(selectedAlert.id)} 
+                  className="flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-400 rounded-lg hover:bg-green-500/20"
+                >
+                  <CheckCircle size={16}/> Resolve Alert
+                </button>
               }
             </footer>
           </div>
