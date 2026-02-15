@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Shield, ShieldOff, Plus, Trash2, ChevronDown, Wifi, WifiOff, Loader2 } from 'lucide-react';
+import { Shield, ShieldOff, Plus, Trash2, ChevronDown, Wifi, WifiOff, Loader2, X, AlertTriangle } from 'lucide-react';
 import AgentSelector from '@/components/AgentSelector';
 import { useAgent } from '@/lib/agent-context';
 import { createClient } from '@/lib/supabase/client';
@@ -26,6 +26,10 @@ export default function FirewallPage() {
   const [newRulePort, setNewRulePort] = useState('');
   const [newRuleProtocol, setNewRuleProtocol] = useState<'tcp' | 'udp'>('tcp');
   const [newRuleFrom, setNewRuleFrom] = useState('any');
+  
+  // State for delete confirmation
+  const [ruleToDelete, setRuleToDelete] = useState<{id: string, rule: any} | null>(null);
+  const [isDeletingRule, setIsDeletingRule] = useState(false);
 
   const rules = firewallRules; // Use rules from WebSocket
 
@@ -67,7 +71,7 @@ export default function FirewallPage() {
       )
       .subscribe();
 
-    // Subscribe to agents table for firewall_enabled changes (this is what backend updates!)
+    // Subscribe to agents table for firewall_enabled changes
     const agentsChannel = supabase
       .channel(`agents:id=eq.${selectedAgent.id}`)
       .on<Agent>(
@@ -82,7 +86,6 @@ export default function FirewallPage() {
           const newAgent = payload.new as any;
           console.log('Agent firewall status updated:', newAgent.firewall_enabled);
           setLocalFirewallEnabled(newAgent.firewall_enabled ?? false);
-          // Clear loading immediately when firewall status changes
           setIsToggling(false);
         }
       )
@@ -94,7 +97,6 @@ export default function FirewallPage() {
     };
   }, [selectedAgent, supabase]);
 
-  // Use local state if available (from realtime), otherwise fall back to selectedAgent
   const firewallEnabled = localFirewallEnabled ?? selectedAgent?.firewall_enabled ?? false;
   
   const handleToggleFirewall = async () => {
@@ -103,20 +105,17 @@ export default function FirewallPage() {
     const newState = !firewallEnabled;
     setIsToggling(true);
 
-    // Send command to agent
     sendCommand(selectedAgent.id, "toggle_firewall", { 
       enabled: newState 
     });
 
-    // Safety timeout - clear after 5 seconds if agent doesn't respond
     setTimeout(() => setIsToggling(false), 5000);
   };
 
-  const handleAddRule = (e: React.SubmitEvent) => {
+  const handleAddRule = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAgent || !newRulePort) return;
 
-    // Format for UFW command (e.g., "80/tcp")
     const ruleString = `${newRulePort}/${newRuleProtocol}`;
     
     sendCommand(selectedAgent.id, "add_firewall_rule", {
@@ -124,16 +123,28 @@ export default function FirewallPage() {
       action: newRuleAction
     });
 
-    setNewRulePort(''); // Clear input
+    setNewRulePort('');
   };
 
-  const handleRemoveRule = (index: string) => {
-    if (!selectedAgent) return;
+  const handleDeleteClick = (rule: any) => {
+    setRuleToDelete({ id: rule.id, rule });
+  };
+
+  const handleConfirmDelete = () => {
+    if (!selectedAgent || !ruleToDelete) return;
+    
+    setIsDeletingRule(true);
     
     // Send the rule number (index) to delete
     sendCommand(selectedAgent.id, "delete_firewall_rule", {
-      index: index
+      index: ruleToDelete.id
     });
+    
+    // Close modal and reset state after a short delay
+    setTimeout(() => {
+      setIsDeletingRule(false);
+      setRuleToDelete(null);
+    }, 500);
   };
 
   const PolicyDropdown = ({ value, onChange }: { value: Policy, onChange: (v: Policy) => void }) => (
@@ -204,20 +215,10 @@ export default function FirewallPage() {
                    Debug: {firewallEnabled ? 'Enabled' : 'Disabled'}
                 </p>
             </div>
-            {/* <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-                 <h3 className="text-lg font-semibold text-white mb-4">Default Incoming</h3>
-                 <PolicyDropdown value={defaultIncoming} onChange={(v) => handlePolicyChange('incoming', v)} />
-            </div>
-            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-                 <h3 className="text-lg font-semibold text-white mb-4">Default Outgoing</h3>
-                 <PolicyDropdown value={defaultOutgoing} onChange={(v) => handlePolicyChange('outgoing', v)} />
-            </div> */}
-            {/* This firewall is always in "default deny incoming, default allow outgoing" mode. Explain that to the user */}
-            <div className="bg-slate-900 p-2 rounded-xl border border-slate-800">
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 col-span-2">
                   <h3 className="text-lg font-semibold text-white mb-4">Default Policies</h3>
                   <p className="text-slate-400">This firewall operates in a default deny incoming, default allow outgoing mode.</p>
             </div>
-
         </div>
 
         {/* Firewall Rules */}
@@ -269,10 +270,15 @@ export default function FirewallPage() {
                             <td className={`p-4 font-semibold ${rule.action.toLowerCase() === 'allow' ? 'text-green-400' : 'text-red-400'}`}>
                               {rule.action.toUpperCase()}
                             </td>
-                            <td className="p-4 font-mono">{rule.to}</td> {/* UFW parsed 'to' */}
-                            <td className="p-4 font-mono">{rule.from}</td> {/* UFW parsed 'from' */}
+                            <td className="p-4 font-mono">{rule.to}</td>
+                            <td className="p-4 font-mono">Anywhere</td>
+                            <td className="p-4 font-mono">{rule.from}</td>
                             <td className="p-4 text-right">
-                              <button onClick={() => handleRemoveRule(rule.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-full">
+                              <button 
+                                onClick={() => handleDeleteClick(rule)} 
+                                className="p-2 text-red-500 hover:bg-red-500/10 rounded-full transition"
+                                title="Delete rule"
+                              >
                                 <Trash2 size={16}/>
                               </button>
                             </td>
@@ -283,6 +289,63 @@ export default function FirewallPage() {
              {rules.length === 0 && <p className="p-4 text-slate-500">No firewall rules loaded. Waiting for connection...</p>}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {ruleToDelete && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-red-500/20 rounded-full">
+                <AlertTriangle className="text-red-400" size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Delete Firewall Rule?</h3>
+                <p className="text-sm text-slate-400">
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            
+            {/* Show rule details */}
+            <div className="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Action:</span>
+                  <span className={`font-semibold ${ruleToDelete.rule.action.toLowerCase() === 'allow' ? 'text-green-400' : 'text-red-400'}`}>
+                    {ruleToDelete.rule.action.toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Port:</span>
+                  <span className="text-white font-mono">{ruleToDelete.rule.to}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">From:</span>
+                  <span className="text-white font-mono">{ruleToDelete.rule.from}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setRuleToDelete(null)}
+                disabled={isDeletingRule}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={isDeletingRule}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition disabled:opacity-50 flex items-center gap-2"
+              >
+                {isDeletingRule && <Loader2 size={16} className="animate-spin" />}
+                {isDeletingRule ? 'Deleting...' : 'Delete Rule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
