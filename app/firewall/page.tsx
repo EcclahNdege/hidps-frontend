@@ -127,11 +127,16 @@ export default function FirewallPage() {
   };
 
   const handleDeleteClick = (rule: any) => {
+    console.log('🔥 Delete clicked for rule:', rule);
     setRuleToDelete({ id: rule.id, rule });
   };
 
   const handleConfirmDelete = () => {
     if (!selectedAgent || !ruleToDelete) return;
+    
+    console.log('🔥 Deleting rule with index:', ruleToDelete.id);
+    console.log('🔥 Full rule data:', ruleToDelete);
+    console.log('🔥 Sending to agent:', selectedAgent.id);
     
     setIsDeletingRule(true);
     
@@ -309,6 +314,10 @@ export default function FirewallPage() {
             {/* Show rule details */}
             <div className="bg-slate-800/50 rounded-lg p-4 mb-4 border border-slate-700">
               <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Rule #:</span>
+                  <span className="text-white font-mono">{ruleToDelete.id}</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Action:</span>
                   <span className={`font-semibold ${ruleToDelete.rule.action.toLowerCase() === 'allow' ? 'text-green-400' : 'text-red-400'}`}>
