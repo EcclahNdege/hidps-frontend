@@ -6,6 +6,7 @@ import { useAgent } from '@/lib/agent-context';
 import { useWebSocket } from '@/lib/websocket-context';
 import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/lib/supabase/database.types';
+import DailyReportsWidget from '@/components/DailyReportsWidget';
 
 type Alert = Database['public']['Tables']['alerts']['Row'];
 type AgentStats = Database['public']['Tables']['agent_stats']['Row'];
@@ -88,7 +89,7 @@ export default function DashboardPage() {
         .select('*')
         .eq('agent_id', selectedAgent.id)
         .order('created_at', { ascending: false })
-        .limit(3); // ✅ changed to 3
+        .limit(3);
 
       if (data) setRecentAlerts(data);
     };
@@ -101,7 +102,7 @@ export default function DashboardPage() {
     return logs
       .filter(log => log.agent_id === selectedAgent.id)
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 3); // ✅ only 3 logs
+      .slice(0, 3);
   }, [logs, selectedAgent]);
 
   const cpu = Number(agentStats?.cpu_usage ?? 0);
@@ -131,7 +132,7 @@ export default function DashboardPage() {
           <span className={`font-bold px-3 py-1 rounded-full ${
             firewallEnabled
               ? 'text-green-400 bg-green-500/10'
-              : 'text-red-400 bg-red-500/10' // ✅ fixed typo
+              : 'text-red-400 bg-red-500/10'
           }`}>
             {firewallEnabled ? 'Enabled' : 'Disabled'}
           </span>
@@ -179,26 +180,10 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Daily Reports */}
-        <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
-          <h3 className="text-xl font-bold text-white mb-4">Daily Reports</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center p-3 rounded-lg hover:bg-slate-800/50">
-              <div>
-                <p className="font-semibold text-white">Summary for July 21, 2024</p>
-                <p className="text-sm text-slate-400">No critical issues.</p>
-              </div>
-              <a href="#" className="text-sm text-cyan-400 hover:underline">View</a>
-            </div>
-            <div className="flex justify-between items-center p-3 rounded-lg hover:bg-slate-800/50">
-              <div>
-                <p className="font-semibold text-white">Summary for July 20, 2024</p>
-                <p className="text-sm text-slate-400">3 medium alerts.</p>
-              </div>
-              <a href="#" className="text-sm text-cyan-400 hover:underline">View</a>
-            </div>
-          </div>
-        </div>
+        {/* Daily Reports - REPLACED WITH WIDGET */}
+        {selectedAgent && (
+          <DailyReportsWidget agentId={selectedAgent.id} />
+        )}
       </div>
     </>
   );
