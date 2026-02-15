@@ -10,6 +10,52 @@ import { useWebSocket } from '@/lib/websocket-context';
 
 type MonitoredFile = Database['public']['Tables']['monitored_files']['Row'];
 
+// Helper function to extract clean file information from log messages
+function parseFileLogMessage(message: string) {
+  // Pattern 1: "Monitored file MODIFIED: /path/to/file"
+  const modifiedMatch = message.match(/Monitored file (?:MODIFIED|UPDATED|DELETED|MOVED|being edited): (.+?)(?:\s|$)/);
+  if (modifiedMatch) {
+    const filepath = modifiedMatch[1].trim();
+    const filename = filepath.split('/').pop() || filepath;
+    
+    if (message.includes('MODIFIED')) {
+      return { action: 'Modified', filepath, filename, icon: '📝' };
+    } else if (message.includes('UPDATED') || message.includes('saved by editor')) {
+      return { action: 'Saved', filepath, filename, icon: '💾' };
+    } else if (message.includes('DELETED')) {
+      return { action: 'Deleted', filepath, filename, icon: '🗑️' };
+    } else if (message.includes('being edited')) {
+      return { action: 'Editing', filepath, filename, icon: '✏️' };
+    }
+  }
+  
+  // Pattern 2: "New file created in monitored location: /path/to/file"
+  const createdMatch = message.match(/New file created in monitored location: (.+?)(?:\s|$)/);
+  if (createdMatch) {
+    const filepath = createdMatch[1].trim();
+    const filename = filepath.split('/').pop() || filepath;
+    return { action: 'Created', filepath, filename, icon: '➕' };
+  }
+  
+  // Pattern 3: Check for temp files - skip them
+  if (message.includes('.goutputstream') || 
+      message.includes('.swp') || 
+      message.includes('~') ||
+      message.includes('.tmp')) {
+    return null; // Skip temp file events
+  }
+  
+  // Fallback: try to extract any file path
+  const pathMatch = message.match(/\/[\w\/.-]+/);
+  if (pathMatch) {
+    const filepath = pathMatch[0];
+    const filename = filepath.split('/').pop() || filepath;
+    return { action: 'Changed', filepath, filename, icon: '📄' };
+  }
+  
+  return null; // Skip unparseable logs
+}
+
 // --- MAIN FILE MONITORING PAGE COMPONENT ---
 export default function FileMonitoringPage() {
   const { selectedAgent } = useAgent();
@@ -147,6 +193,11 @@ export default function FileMonitoringPage() {
   const fileLogs = selectedAgent 
     ? logs
         .filter(log => log.agent_id === selectedAgent.id && log.type === 'file_monitoring')
+        .map(log => ({
+          ...log,
+          parsed: parseFileLogMessage(log.message)
+        }))
+        .filter(log => log.parsed !== null) // Remove unparseable or temp file logs
         .slice(0, 10) // Show last 10 file events
     : [];
 
@@ -223,24 +274,35 @@ export default function FileMonitoringPage() {
             {fileLogs.length === 0 ? (
               <p className="text-sm text-slate-500">No file events detected yet.</p>
             ) : (
-              fileLogs.map((log, index) => (
-                <div 
-                  key={index} 
-                  className="p-3 bg-slate-800/50 rounded-lg border-l-2 border-yellow-500"
-                >
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="text-yellow-400 mt-0.5 flex-shrink-0" size={14} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-slate-400 mb-1">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </p>
-                      <p className="text-sm text-slate-200 font-mono break-words">
-                        {log.message}
-                      </p>
+              fileLogs.map((log, index) => {
+                const parsed = log.parsed!;
+                return (
+                  <div 
+                    key={index} 
+                    className="p-3 bg-slate-800/50 rounded-lg border-l-2 border-yellow-500"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="mt-0.5 flex-shrink-0">{parsed.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold text-yellow-400">
+                            {parsed.action}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-200 font-semibold mb-1">
+                          {parsed.filename}
+                        </p>
+                        <p className="text-xs text-slate-400 font-mono break-all">
+                          {parsed.filepath}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
