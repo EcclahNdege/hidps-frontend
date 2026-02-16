@@ -127,30 +127,11 @@ export default function FirewallPage() {
   };
 
   const handleDeleteClick = (rule: any) => {
-    // BYPASS MODAL - DELETE DIRECTLY FOR TESTING
-    alert('🔥 DELETE CLICKED! Rule: ' + rule.id);
     console.log('🔥 Delete clicked for rule:', rule);
-    
-    if (!selectedAgent) {
-      alert('No agent selected!');
-      return;
-    }
-    
-    console.log('🔥 Sending delete command to agent:', selectedAgent.id);
-    console.log('🔥 Rule index:', rule.id);
-    
-    // Send delete command IMMEDIATELY
-    sendCommand(selectedAgent.id, "delete_firewall_rule", {
-      index: rule.id
-    });
-    
-    alert('Delete command sent!');
+    setRuleToDelete({ id: rule.id, rule });
   };
 
   const handleConfirmDelete = () => {
-    // SUPER OBVIOUS DEBUG
-    alert('DELETE BUTTON CLICKED! Rule ID: ' + (ruleToDelete?.id || 'NONE'));
-    
     if (!selectedAgent || !ruleToDelete) return;
     
     console.log('🔥 Deleting rule with index:', ruleToDelete.id);
