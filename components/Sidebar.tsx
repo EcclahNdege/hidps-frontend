@@ -29,7 +29,6 @@ const navItems = [
     { href: '/logs', icon: BookText, label: 'Logs' },
     { href: '/firewall', icon: Shield, label: 'Firewall' },
     { href: '/file-monitoring', icon: FileWarning, label: 'File Monitoring' },
-    { href: '/port-scanning', icon: ScanLine, label: 'Port Scanning' },
   ];
 
 interface SidebarProps {
