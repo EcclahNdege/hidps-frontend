@@ -1,5 +1,4 @@
 "use client";
-
 import {
   createContext,
   useContext,
@@ -14,7 +13,7 @@ interface WebSocketContextType {
   logs: any[];
   firewallRules: any[];
   isConnected: boolean;
-  sendCommand: (agentId: string, command: string, payload: any) => void; // New helper
+  sendCommand: (agentId: string, command: string, payload: any) => void;
 }
 
 // Create the context with a default value
@@ -28,7 +27,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [firewallRules, setFirewallRules] = useState<any[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-  const [socket, setSocket] = useState<WebSocket | null>(null); // Store socket instance
+  const [socket, setSocket] = useState<WebSocket | null>(null);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,14 +49,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!userId) return;
 
-  
-
-    // UPDATE: Your Render Host
     const BACKEND_WS_URL = process.env.NEXT_PUBLIC_BACKEND_WS_URL || 'wss://hidps-backend-gi76.onrender.com';
     const wsUrl = `${BACKEND_WS_URL}?user_id=${userId}`;
 
     const ws = new WebSocket(wsUrl);
-    setSocket(ws); // Save the socket instance
+    setSocket(ws);
 
     ws.onopen = () => {
       console.log("WebSocket connected");
@@ -95,13 +91,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       setIsConnected(false)
     };
 
-    // Clean up the connection when the component unmounts
     return () => {
       ws.close();
     };
   }, [userId]);
 
   const sendCommand = (agentId: string, command: string, payload: any) => {
+    console.log("🔥 SENDING COMMAND:", command, "to agent:", agentId, "payload:", payload);
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({
         type: "frontend_command",
@@ -109,8 +105,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         command,
         payload
       }));
+      console.log("✅ Command sent successfully via WebSocket");
+    } else {
+      console.log("❌ Socket not ready. ReadyState:", socket?.readyState);
     }
   };
+
   const value = {
     logs,
     firewallRules,
