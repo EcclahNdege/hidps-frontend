@@ -3,9 +3,6 @@ import { createContext, useContext, useState, ReactNode, useEffect } from 'react
 import { createClient } from './supabase/client';
 import { Database } from './supabase/database.types';
 
-// It appears the 'firewall_enabled' property is missing from your Supabase 'agents' table definition.
-// To fix this properly, you should add a 'firewall_enabled' column (e.g., of type BOOLEAN) to your 'agents' table in Supabase,
-// and then regenerate your 'supabase/database.types.ts' file.
 type Agent = Database['public']['Tables']['agents']['Row'] & { firewall_enabled?: boolean; };
 
 interface AgentContextType {
@@ -16,51 +13,64 @@ interface AgentContextType {
 }
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined);
+const STORAGE_KEY = 'hidps_selected_agent_id';
 
 export function AgentProvider({ children }: { children: ReactNode }) {
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [selectedAgent, setSelectedAgentState] = useState<Agent | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const supabase = createClient();
+
+  const setSelectedAgent = (agent: Agent | null) => {
+    setSelectedAgentState(agent);
+    if (agent) {
+      localStorage.setItem(STORAGE_KEY, agent.id);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  };
 
   const fetchAgents = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       setAgents([]);
-      setSelectedAgent(null);
+      setSelectedAgentState(null);
       return;
     }
 
     const { data, error } = await supabase.from('agents').select('*');
-    
     if (error) {
       console.error('Error fetching agents:', error);
       setAgents([]);
     } else if (data) {
       setAgents(data);
-      // Only set selected agent if there isn't one already or if current one is no longer in the list
-      if (!selectedAgent && data.length > 0) {
-        setSelectedAgent(data.length > 0 ? data[0] : null);
-      }
+
+      // Restore previously selected agent from localStorage
+      const savedId = localStorage.getItem(STORAGE_KEY);
+      setSelectedAgentState(prev => {
+        if (prev) {
+          // Keep current selection if it still exists in the list
+          const stillExists = data.find(a => a.id === prev.id);
+          return stillExists || data[0] || null;
+        }
+        if (savedId) {
+          // Restore from localStorage
+          const saved = data.find(a => a.id === savedId);
+          return saved || data[0] || null;
+        }
+        // Default to first agent
+        return data[0] || null;
+      });
     }
   };
 
   useEffect(() => {
     fetchAgents();
-    
-    // Optional: Set up real-time subscription to agents table
+
     const channel = supabase
       .channel('agents_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'agents'
-        },
-        () => {
-          fetchAgents();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => {
+        fetchAgents();
+      })
       .subscribe();
 
     return () => {
