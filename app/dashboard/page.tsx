@@ -44,41 +44,59 @@ export default function DashboardPage() {
   const { logs } = useWebSocket();
   const [recentAlerts, setRecentAlerts] = useState<Alert[]>([]);
   const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
+  const [isOnline, setIsOnline] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
     if (!selectedAgent) return;
 
-    const fetchAgentStats = async () => {
+    const fetchLatestStats = async () => {
       const { data } = await supabase
         .from('agent_stats')
         .select('*')
         .eq('agent_id', selectedAgent.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
 
-      if (data) setAgentStats(data);
+      if (data) {
+        setAgentStats(data);
+        const lastSeen = new Date(data.created_at).getTime();
+        const now = new Date().getTime();
+        setIsOnline((now - lastSeen) < 30 * 1000);
+      }
     };
 
-    fetchAgentStats();
+    fetchLatestStats();
 
+    // Poll every 5 seconds
+    const interval = setInterval(fetchLatestStats, 5000);
+
+    // Also listen for real-time inserts
     const channel = supabase
-      .channel(`agent_stats:agent_id=eq.${selectedAgent.id}`)
+      .channel(`agent_stats_${selectedAgent.id}`)
       .on<AgentStats>(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'agent_stats',
           filter: `agent_id=eq.${selectedAgent.id}`,
         },
-        (payload) => setAgentStats(payload.new as AgentStats)
+        (payload) => {
+          if (payload.new) {
+            setAgentStats(payload.new as AgentStats);
+            setIsOnline(true);
+          }
+        }
       )
       .subscribe();
 
     return () => {
+      clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [selectedAgent, supabase]);
+  }, [selectedAgent]);
 
   useEffect(() => {
     if (!selectedAgent) return;
@@ -95,7 +113,25 @@ export default function DashboardPage() {
     };
 
     fetchAlerts();
-  }, [selectedAgent, supabase]);
+
+    const channel = supabase
+      .channel(`alerts_${selectedAgent.id}`)
+      .on<Alert>(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'alerts',
+          filter: `agent_id=eq.${selectedAgent.id}`,
+        },
+        () => fetchAlerts()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedAgent]);
 
   const recentLogs = useMemo(() => {
     if (!selectedAgent) return [];
@@ -115,7 +151,7 @@ export default function DashboardPage() {
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <h2 className="text-3xl font-bold text-white">Dashboard</h2>
         <div className="flex items-center gap-4">
-          <StatusIndicator label="Agent Status" isOnline={selectedAgent?.is_online || false} />
+          <StatusIndicator label="Agent Status" isOnline={isOnline} />
           <AgentSelector />
         </div>
       </header>
@@ -140,10 +176,12 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Recent Alerts */}
         <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
           <h3 className="text-xl font-bold text-white mb-4">Recent Alerts</h3>
           <div className="space-y-3">
+            {recentAlerts.length === 0 && (
+              <p className="text-slate-500 text-sm">No recent alerts.</p>
+            )}
             {recentAlerts.map(alert => (
               <div key={alert.id} className="flex gap-4 p-3 rounded-lg hover:bg-slate-800/50">
                 <div className="mt-1 p-2 h-fit rounded-full bg-red-500/20 text-red-400">
@@ -161,7 +199,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Recent Logs */}
         <div className="bg-slate-900 p-6 rounded-xl border border-slate-800">
           <h3 className="text-xl font-bold text-white mb-4">Recent Logs</h3>
           <div className="font-mono text-xs text-slate-400 space-y-2">
@@ -180,7 +217,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Daily Reports - REPLACED WITH WIDGET */}
         {selectedAgent && (
           <DailyReportsWidget agentId={selectedAgent.id} />
         )}
