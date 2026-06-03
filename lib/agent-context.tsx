@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import { createClient } from './supabase/client';
 import { Database } from './supabase/database.types';
 
@@ -18,14 +18,17 @@ const STORAGE_KEY = 'hidps_selected_agent_id';
 export function AgentProvider({ children }: { children: ReactNode }) {
   const [selectedAgent, setSelectedAgentState] = useState<Agent | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const hasInitialized = useRef(false);
   const supabase = createClient();
 
   const setSelectedAgent = (agent: Agent | null) => {
     setSelectedAgentState(agent);
-    if (agent) {
-      localStorage.setItem(STORAGE_KEY, agent.id);
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
+    if (typeof window !== 'undefined') {
+      if (agent) {
+        localStorage.setItem(STORAGE_KEY, agent.id);
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
     }
   };
 
@@ -44,22 +47,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     } else if (data) {
       setAgents(data);
 
-      // Restore previously selected agent from localStorage
-      const savedId = localStorage.getItem(STORAGE_KEY);
-      setSelectedAgentState(prev => {
-        if (prev) {
-          // Keep current selection if it still exists in the list
-          const stillExists = data.find(a => a.id === prev.id);
-          return stillExists || data[0] || null;
-        }
-        if (savedId) {
-          // Restore from localStorage
-          const saved = data.find(a => a.id === savedId);
-          return saved || data[0] || null;
-        }
-        // Default to first agent
-        return data[0] || null;
-      });
+      // Only set initial agent once — never override user's manual selection
+      if (!hasInitialized.current) {
+        hasInitialized.current = true;
+        const savedId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+        const savedAgent = savedId ? data.find(a => a.id === savedId) : null;
+        setSelectedAgentState(savedAgent || data[0] || null);
+      }
     }
   };
 
