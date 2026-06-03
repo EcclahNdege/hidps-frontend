@@ -7,17 +7,16 @@ import { createClient } from '@/lib/supabase/client';
 import { useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 
-// --- MAIN AGENTS COMPONENT ---
 export default function AgentsPage() {
   const { agents, selectedAgent } = useAgent();
   const [user, setUser] = useState<User | null>(null);
-  const [agentStats, setAgentStats] = useState<Map<string, { is_installed: boolean }>>(new Map());
+  const [agentStats, setAgentStats] = useState<Map<string, { is_installed: boolean, created_at: string }>>(new Map());
   const supabase = createClient();
 
   useEffect(() => {
     const getUser = async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        setUser(user);
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
     }
     getUser();
   }, [supabase]);
@@ -26,17 +25,29 @@ export default function AgentsPage() {
     const fetchAgentStats = async () => {
       const { data, error } = await supabase
         .from('agent_stats')
-        .select('agent_id, is_installed');
-      
+        .select('agent_id, is_installed, created_at')
+        .order('created_at', { ascending: false });
+
       if (error) {
         console.error('Error fetching agent stats:', error);
       } else {
-        const statsMap = new Map(data.map(stat => [stat.agent_id, { is_installed: stat.is_installed }]));
+        const statsMap = new Map(
+          data.map(stat => [stat.agent_id, {
+            is_installed: stat.is_installed,
+            created_at: stat.created_at
+          }])
+        );
         setAgentStats(statsMap);
       }
     };
     fetchAgentStats();
   }, []);
+
+  const isOnline = (createdAt: string) => {
+    const lastSeen = new Date(createdAt).getTime();
+    const now = new Date().getTime();
+    return (now - lastSeen) < 2 * 60 * 1000; // 2 minutes
+  };
 
   return (
     <>
@@ -58,34 +69,7 @@ export default function AgentsPage() {
         {agents.map((agent) => {
           const stats = agentStats.get(agent.id);
           const isInstalled = stats?.is_installed || false;
+          const online = stats ? isOnline(stats.created_at) : false;
 
           return (
-            <div key={agent.id} className="bg-slate-900 p-6 rounded-xl border border-slate-800 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center gap-3 mb-4">
-                  <Shield size={24} className="text-slate-400" />
-                  <h3 className="text-xl font-bold text-white">{agent.name}</h3>
-                </div>
-              </div>
-              <div className="mt-6">
-                {user?.id === agent.owner_id && (
-                  isInstalled ? (
-                    <Link href={`/agents/${agent.id}/add-user`} className="flex items-center gap-2 w-full justify-center bg-slate-800 text-slate-300 py-2 px-4 rounded-lg hover:bg-slate-700">
-                      <UserPlus size={18} />
-                      Add Users
-                    </Link>
-                  ) : (
-                    <Link href={`/agents/${agent.id}/install`} className="flex items-center gap-2 w-full justify-center bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700">
-                      <Download size={18} />
-                      Install Agent
-                    </Link>
-                  )
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </>
-  );
-}
+            <div key={agent.id} className="bg-slate-900 p-6 rounded-xl border border-slate-800 fle
